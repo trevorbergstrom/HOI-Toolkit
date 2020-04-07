@@ -187,4 +187,24 @@ class HICO_DET_Dataloader(Dataset):
 
         return sample
 
+    def __get_human_crop__(self, idx, split):
+
+        img = 0
+        img_anno = 0
+
+        if split == 'test':
+            img = get_image(idx, split) # Here open the image and then load it into a torchtensor??
+            img_anno = self.img_test[idx]
+        else:
+            img = get_image(idx, split) # here open again
+            img_anno = self.img_train[idx]
+
+        if img_anno == 0:
+            bbox_h = img_anno[idx][2][0]
+            human = img.crop(( bbox_h[0], bbox_h[2], bbox_h[1], bbox_h[3] ))
+            return human
+        else:
+            return 0
+
 data = HICO_DET_Dataloader()
+
