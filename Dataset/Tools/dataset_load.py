@@ -2,8 +2,9 @@ from scipy.io import loadmat
 import numpy as np
 from torch.utils.data import Dataset
 import torch
-from torchvision.transforms import ToTensor, ToPILImage
-from PIL import Image
+#from torchvision.transforms import ToTensor, ToPILImage
+import torchvision.transforms as transforms
+from PIL import Image, ImageDraw
 import os
 
 '''
@@ -149,6 +150,7 @@ class HICO_DET_Dataloader(Dataset):
         return bbs
 
     def __init__(self, train_data_path, test_data_path, matfile):
+        print('Loading Dataset...')
         bbs = self.__load_mat__(matfile)
         # Training Bounding Boxes:
         bb_train = bbs['bbox_train']
@@ -161,6 +163,7 @@ class HICO_DET_Dataloader(Dataset):
         self.img_test = self.convert_bb('test', bb_test)
         self.test_data_path = test_data_path
         self.train_data_path = test_data_path
+        print('Done Loading Dataset...')
 
     def __len__(self):
         return len(self.img_train) + len(self.img_test)
@@ -205,7 +208,7 @@ class HICO_DET_Dataloader(Dataset):
         if img_anno[4][0][1] == 0:
             bbox = img_anno[4][0][3][0]
             obj = img.crop(( bbox[0], bbox[2], bbox[1], bbox[3] ))
-            return obj
+            return obj, bbox
         else:
             return 0
 
@@ -221,9 +224,48 @@ class HICO_DET_Dataloader(Dataset):
         if img_anno[4][0][1] == 0:
             bbox_h = img_anno[4][0][2][0]
             human = img.crop(( bbox_h[0], bbox_h[2], bbox_h[1], bbox_h[3] ))
-            return human
+            return human, bbox_h
         else:
             return 0
+
+    def __get_img_dims__(self, idx, split):
+
+        if split == 'test':
+            img_anno = self.img_test[idx]
+            return img_anno[1], img_anno[2]
+        else:
+            img_anno = self.img_train[idx]
+            return img_anno[1], img_anno[2]
+
+
+def get_interaction_pattern(w, h, bbox_h, bbox_o):
+    ip_x1 = min(bbox_h[0], bbox_o[0])
+    ip_x2 = max(bbox_h[1], bbox_o[1])
+    ip_y1 = min(bbox_h[2], bbox_o[2])
+    ip_y2 = max(bbox_h[3], bbox_o[3])
+
+    print('x1:' + str(ip_x1) + ' x2:' + str(ip_x2) + 'y1:' + str(ip_y1) + ' y2:' + str(ip_y2))
+
+    human_channel = Image.new('1', (w,h), color=0)
+    human_channel = human_channel.crop((ip_x1, ip_y1, ip_x2, ip_y2))
+    img_h = ImageDraw.Draw(human_channel)
+    img_h.rectangle([bbox_h[0], bbox_h[2], bbox_h[1], bbox_h[3]], fill=1)
+    #human_channel.show()
+    human_channel = human_channel.resize((256,256))
+    human_channel = np.asarray(human_channel)
+    human_channel = torch.from_numpy(human_channel)
+
+    object_channel = Image.new('1', (w,h), color=0)
+    object_channel = object_channel.crop((ip_x1, ip_y1, ip_x2, ip_y2))
+    img_o = ImageDraw.Draw(object_channel)
+    img_o.rectangle([bbox_o[0], bbox_o[2], bbox_o[1], bbox_o[3]], fill=1)
+    #object_channel.show()
+    object_channel = object_channel.resize((256,256))
+    object_channel = np.asarray(object_channel)
+    object_channel = torch.from_numpy(object_channel)
+
+    return torch.stack([human_channel, object_channel], dim=0)
+
 
 '''
 Testing stuff delete later
@@ -233,5 +275,6 @@ data.__get_human_crop__(1, 'test').show()
 data.__get_object_crop__(1, 'test').show()
 
 NEED TO FIX: image paths...
+ip = get_interaction_pattern(640,480, [100,200,100,500], [300,500,300,400])
+print(ip.shape)
 '''
-
