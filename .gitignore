@@ -1,1 +1,14 @@
 Dataset/Tools/train2015
+
+# Editor Tempfiles:
+*.swn
+*.swo
+*.swp
+*~
+
+# Python binaries:
+*.pyc
+*.pyd
+
+
+
