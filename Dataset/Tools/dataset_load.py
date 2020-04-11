@@ -237,6 +237,19 @@ class HICO_DET_Dataloader(Dataset):
             img_anno = self.img_train[idx]
             return img_anno[1], img_anno[2]
 
+    def __get_output__(self, idx, split):
+        outs = np.zeros(600)
+
+        if split =='test':
+            hoi_id = self.img_test[idx][4][0][0]
+        else:
+            hoi_id = self.img_train[idx][4][0][0]
+
+        print(hoi_id)
+        outs[hoi_id] = 1.0
+
+        return outs
+
 
 def get_interaction_pattern(w, h, bbox_h, bbox_o):
     ip_x1 = min(bbox_h[0], bbox_o[0])
