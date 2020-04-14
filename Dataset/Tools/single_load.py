@@ -195,12 +195,6 @@ class HICO_DET_Dataloader(Dataset):
                   'Y': img_anno}
 
         return sample
-    def __check_dev__(self, bbox1, bbox2):
-
-    def __get_crop__(self, img_name, bbox, data_path):
-        img = Image.open(os.path.join(data_path, name))
-        img = img.crop((bbox[0], bbox[2], bbox[1], bbox[3]))
-        return img
 
     def __get_object_crop__(self, idx, split):
 

@@ -6,38 +6,39 @@ import numpy as np
 import sys
 import torch.optim as optim
 
+# Dataset stuff
 sys.path.append('../Dataset/Tools')
 from dataset_load import HICO_DET_Dataloader, get_interaction_pattern
+
+# Set anomaly tracking:
 torch.autograd.set_detect_anomaly(True)
 
+# Dataset loader class. Loads data from matfiles and creates lists of annotations
 class HO_RCNN(nn.Module):
 
     def __init__(self):
         super(HO_RCNN, self).__init__()
+
+        # Human Stream Layers:
         self.human_cnn_layers = nn.Sequential(
                 # First convLayer:
                 nn.Conv2d(3, 96, kernel_size=11, stride=4),
-                #nn.ReLU(inplace=True),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=3, stride=2),
                 nn.LocalResponseNorm(5),
                 # Second convLayer:
                 nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2, groups=2),
-                #nn.ReLU(inplace=True),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=3, stride=2),
                 nn.LocalResponseNorm(5),
                 # Third ConvLayer:
                 nn.Conv2d(256, 384, kernel_size=3, padding=1),
-                #nn.ReLU(inplace=True),
                 nn.ReLU(),
                 # Fourth ConvLayer:
                 nn.Conv2d(384, 384, kernel_size=3, padding=1, groups=2),
-                #nn.ReLU(inplace=True),
                 nn.ReLU(),
                 # Fifth ConvLayer:
                 nn.Conv2d(384, 256, kernel_size=3, padding=1, groups=2),
-                #nn.ReLU(inplace=True),
                 nn.ReLU(),
                 nn.MaxPool2d(kernel_size=3, stride=2),
                 )
@@ -56,6 +57,7 @@ class HO_RCNN(nn.Module):
                 nn.Linear(4096, 600)
                 )
 
+        # Object Stream Layers:
         self.object_cnn_layers = nn.Sequential(
                 # First convLayer:
                 nn.Conv2d(3, 96, kernel_size=11, stride=4),
@@ -97,6 +99,8 @@ class HO_RCNN(nn.Module):
                 # Final Class Score layer:
                 nn.Linear(4096, 600)
                 )
+
+        # Pairwise Stream Layers:
         self.pairwise_cnn_layers = nn.Sequential(
                 # Conv Layer 1:
                 nn.Conv2d(2, 64, kernel_size=5),
@@ -117,42 +121,35 @@ class HO_RCNN(nn.Module):
                 nn.Linear(256, 600)
                 )
 
+    # Forward Pass Function:
     def forward(self, img_human, img_object, img_pairwise):
-    #def forward(self, img_pairwise):
 
+        # Human Stream Pass:
         human_stream = self.human_cnn_layers(img_human)
-        print('Human ConvOut Shape: ' + str(human_stream.shape))
-        #human_stream = human_stream.view(human_stream.size(0), -1)
+        # Flatten for linear layers
         human_stream = torch.flatten(human_stream, 1)
-        print('Human Flatten Shape:' + str(human_stream.shape))
         human_stream = self.human_linear_layers(human_stream)
-        print('Human Output Shape:' + str(human_stream.shape))
 
+        # Object Stream Pass:
         object_stream = self.object_cnn_layers(img_object)
-        print('Object ConvOut Shape: ' + str(object_stream.shape))
-        #object_stream = object_stream.view(object_stream.size(0), -1)
         object_stream = torch.flatten(object_stream, 1)
-        print('Object Flatten Shape:' + str(object_stream.shape))
         object_stream = self.object_linear_layers(object_stream)
-        print('Object Output Shape:' + str(object_stream.shape))
 
-        print('Pairwise input shape: ' + str(img_pairwise.shape))
+        # Pairwise Stream Pass:
         pairwise_stream = self.pairwise_cnn_layers(img_pairwise)
-        print('pairwise ConvOut Shape: ' + str(pairwise_stream.shape))
         pairwise_stream = torch.flatten(pairwise_stream, 1)
-        #pairwise_stream = pairwise_stream.view(pairwise_stream.size(0), -1)
-        print('pairwise Flatten Shape:' + str(pairwise_stream.shape))
         pairwise_stream = self.pairwise_linear_layers(pairwise_stream)
-        print('pairwise Output Shape:' + str(pairwise_stream.shape))
 
+        # Elementwise summation for final class score
         class_score = human_stream.add(object_stream.add(pairwise_stream))
         return class_score
 
-def loss_optim(net, learn_rate=0.001):
-    loss = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=learn_rate)
+def train_model(model, num_epochs, learn_rate):
+    print('=============== Training Model With Parameters =================')
+    print('num_epochs = ' + str(num_epochs))
+    print('learning rate = ' + str(learn_rate))
+    print('================================================================')
 
-    return (loss, optimizer)
 
 
 print('Initializing Model')
