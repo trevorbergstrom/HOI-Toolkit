@@ -160,7 +160,13 @@ class HICO_DET_Dataloader(Dataset):
         actions = bbs['list_action']
 
         self.img_train = self.convert_bb('train', bb_train)
+        self.img_names_train = [img[0] for img in self.img_train[:-1]]
+        self.num_train = len(self.img_train)
+
         self.img_test = self.convert_bb('test', bb_test)
+        self.img_names_test = [img[0] for img in self.img_test[:-1]]
+        self.num_test = len(self.img_test)
+
         self.test_data_path = test_data_path
         self.train_data_path = test_data_path
         print('Done Loading Dataset...')
@@ -195,7 +201,6 @@ class HICO_DET_Dataloader(Dataset):
                   'Y': img_anno}
 
         return sample
-    def __check_dev__(self, bbox1, bbox2):
 
     def __get_crop__(self, img_name, bbox, data_path):
         img = Image.open(os.path.join(data_path, name))
@@ -285,15 +290,16 @@ def get_interaction_pattern(w, h, bbox_h, bbox_o):
 
     return torch.stack([human_channel, object_channel], dim=0)
 
-
 '''
-Testing stuff delete later
+#Testing stuff delete later
 data = HICO_DET_Dataloader('~/Documents/hico/images/train2015', 'test2015','../anno_bbox.mat')
+for i in data.img_names_train:
+    print(i)
+#print(data.img_names_test)
+#data.__get_human_crop__(1, 'test').show()
+#data.__get_object_crop__(1, 'test').show()
 
-data.__get_human_crop__(1, 'test').show()
-data.__get_object_crop__(1, 'test').show()
-
-NEED TO FIX: image paths...
-ip = get_interaction_pattern(640,480, [100,200,100,500], [300,500,300,400])
-print(ip.shape)
+#NEED TO FIX: image paths...
+#ip = get_interaction_pattern(640,480, [100,200,100,500], [300,500,300,400])
+#print(ip.shape)
 '''

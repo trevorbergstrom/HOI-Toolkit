@@ -1,13 +1,39 @@
+'''
+==============================FRCNN_Detector Class =====================================
+This is the image detector. It will loop though all the images in the list and
+create human and object proposals for each image. This should be computed ahead of time
+in training, to reduce the GPU memory footprint.
+
+Uses the pretrained Faster-RCNN model from TorchVision, with the resnet50 backbone.
+
+Proposals are listed as follows:
+    [
+      [
+        [[bbox_h], conf_score], [[bbox_o], conf_score]], img_path]
+        ...
+        ...
+      ]
+    ]
+========================================================================================
+'''
+
 import torch
 import torchvision
 import torchvision.transforms as T
 from PIL import Image
+import os
+import numpy as np
 
 class FRCNN_Detector():
+
     def __init__(self):
+        # Calling TorchVision model
         self.model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+        # Downloads model if needed
         self.model.eval()
+        # Move to GPU:
         self.model.cuda()
+        # Plain English Category names (not needed but good to have)
         self.COCO_INSTANCE_CATEGORY_NAMES = [
         '__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
         'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A', 'stop sign',
@@ -23,6 +49,7 @@ class FRCNN_Detector():
         'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
         ]
 
+    # Function to predict a single image
     def get_predictions(self, img_path, threshold):
         img = Image.open(img_path) # Load the image
         transform = T.Compose([T.ToTensor()]) # Defing PyTorch Transform
@@ -30,47 +57,62 @@ class FRCNN_Detector():
         pred = self.model([img]) # Pass the image to the model
 
         return (pred)
-        '''
-        pred_class = [COCO_INSTANCE_CATEGORY_NAMES[i] for i in list(pred[0]['labels'].numpy())] # Get the Prediction Score
-        pred_boxes = [[(i[0], i[1]), (i[2], i[3])] for i in list(pred[0]['boxes'].detach().numpy())] # Bounding boxes
-        pred_score = list(pred[0]['scores'].detach().numpy())
-        pred_t = [pred_score.index(x) for x in pred_score if x > threshold][-1] # Get list of index with score greater than threshold.
-        pred_boxes = pred_boxes[:pred_t+1]
-        pred_class = pred_class[:pred_t+1]
-        return pred_boxes, pred_class
-        '''
-    def get_data_preds(self, imgs):
-        predlist = []
-        for i in imgs:
-             predlist.append(self.get_predictions(i, 0.01))
 
+    # Fucntion to get a list of proposals for a set of images
+    def get_data_preds(self, imgs, root_dir):
         set_prop_list = []
-        for i in predlist:
+        total_imgs = len(imgs)
+        img_idx = 0
+
+        for i in imgs:
+            print('FRCNN Proposal Computation for Image# ' + str(img_idx) + '/' + str(total_imgs))
+            img_idx = img_idx+1
+            # Compute proposals
+            x = self.get_predictions(os.path.join(root_dir, i), 0.000001)
+
             img_proplist = []
             objs = []
             humans = []
             idx = 0
-            bboxes = list(i[0]['boxes'].cpu().detach().numpy())
-            scores = list(i[0]['scores'].cpu().detach().numpy())
-            for j in list(i[0]['labels'].cpu().detach().numpy()):
+
+            # Converting Detection Results from Tensors to numpy
+            bboxes = list(x[0]['boxes'].cpu().detach().numpy())
+            scores = list(x[0]['scores'].cpu().detach().numpy())
+
+            # Looping through detections and separate humans and other objects:
+            for j in list(x[0]['labels'].cpu().detach().numpy()):
                 if j == 1:
                     humans.append([bboxes[idx], scores[idx]])
                 else:
                     objs.append([bboxes[idx], scores[idx]])
                 idx = idx+1
 
+            # Create proposals with each detected human, convert to int coordinates:
             for human in humans:
-                prop = []
-                prop.append(human)
                 for obj in objs:
+                    prop = []
+                    human[0] = human[0].astype(int)
+                    prop.append(human)
+                    obj[0] = obj[0].astype(int)
                     prop.append(obj)
                     img_proplist.append(prop)
 
+            # If there are less than 8 proposals per image need to pad for batch size:
+            while len(img_proplist) < 8:
+                img_proplist.append([[np.zeros(4, dtype=int), 0.], [np.zeros(4, dtype=int), 0.]])
+
+            # Add the img path to the list
+            img_proplist.append(i)
             set_prop_list.append(img_proplist)
 
-            # each human is a new proposal.
         return set_prop_list
-
+'''
+===================== Testing stuff don't uncomment! ==============================
 det = FRCNN_Detector()
-i = det.get_data_preds(['img.jpg'])
-print(i)
+i = det.get_data_preds(['img.jpg', 'img2.jpg'], '.')
+print(len(i))
+#for j in i:
+#    for k in j:
+#        print(k)
+'''
+#    print()
