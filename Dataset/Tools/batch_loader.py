@@ -9,6 +9,21 @@ sys.path.append('../../Faster_RCNN')
 from frcnn import FRCNN_Detector
 from dataset_load import HICO_DET_Dataloader, get_interaction_pattern
 
+def compute_iou(bbox_prop, bbox_truth):
+    # bbox = x1, x2, y1, y2
+
+    x1 = max(bbox_prop[0], bbox_truth[0])
+    x2 = max(bbox_prop[1], bbox_truth[1])
+    y1 = max(bbox_prop[2], bbox_truth[2])
+    y2 = max(bbox_prop[3], bbox_truth[3])
+
+    area = max(0, x2 - x1 + 1) * max(0, y2 - y1 + 1)
+
+    area_prop = (bbox_prop[1] - bbox_prop[0] + 1) * (bbox_prop[3] - bbox_prop[2] + 1)
+    area_truth = (bbox_truth[1] - bbox_truth[0] + 1) * (bbox_truth[3] - bbox_truth[2] + 1)
+
+    return (area / float(area_prop + area_truth - area))
+
 '''
 The purpose for this intermediate layer between the data_loader and the model is to create minibatches and manage the shuffling of data. The minibatch should contain 64 samples of hoi proposals from randomly sampled images.
 '''
@@ -42,6 +57,7 @@ class Batch_Loader(Dataset):
         self.cur_idx_train = 0
         self.cur_idx_test = 0
 
+    #def __score_ious__(self
     def __compute_proposals__(self):
         print('Using Detector to Pre-Compute Proposals: Training')
         self.training_proposals = self.detector.get_data_preds(self.Data_loader.img_names_train[0:49], os.path.join(self.data_path, 'smallTrain'))
@@ -52,31 +68,48 @@ class Batch_Loader(Dataset):
         #self.test_proposals = self.detector.get_data_preds(self.Data_loader.img_names_test, os.path.join(self.data_path, 'test2015'))
         print('Done')
 
-
+    # Function to return an 64 batch of proposals, 8 random images with 8 random proposals each
     def get_batch(self, split):
         samples = []
         if split == 'train':
-            if cur_idx_train == self.Data_loader.num_train-1:
+            if self.cur_idx_train == self.Data_loader.num_train-1:
                 random.shuffle(self.train_idx)
-                cur_idx_train = 0
+                self.cur_idx_train = 0
 
             props = self.training_proposals
             cidx = self.cur_idx_train
             self.cur_idx_train = self.cur_idx_train + 8
         else:
-            if cur_idx_test == self.Data_loader.num_test-1:
+            if self.cur_idx_test == self.Data_loader.num_test-1:
                 random.shuffle(self.test_idx)
-                cur_idx_test = 0
+                self.cur_idx_test = 0
 
             props = self.test_proposals
             cidx = self.cur_idx_test
             self.cur_idx_test = self.cur_idx_test + 8
 
-        while(len(samples) < 64):
-            img_idxs = props[cidx:cidx+8]
 
-            for idx in img_idxs:
-#UGHHHHHHHH NEED TO KEEP A SHUFFLE ORDER IN THE PROPOSALS..... IDK how to do this
+        img_idxs = props[cidx:cidx+8]
 
+        for idx in img_idxs:
+            random.shuffle(idx)
 
+            for i in range(8):
+                samples.append(idx[i])
+
+        return samples, img_idxs
+
+    def get_ground_truth(self, split, img_idx_lst):
+        # From the list of hois in the image, if any are containing the object in the proposal, then we need to add that hoi index to the gt vector.
+        hoi_in_imgs = []
+        # need to look up the hois and objects that they contain from the groundtruth information
+        for i in img_idx_lst:
+            hoi_in_imgs.aappend( self.Data_loader.hoi_props[i])
+        # then we should loop through the proposals and find any objects that are in the  gt list of hois
+        # those hois that have objects in the proposals are added to the list.
 loader = Batch_Loader(64, 0.01, '../images')
+
+samp = loader.get_batch('test')
+print(samp)
+
+

@@ -16,7 +16,6 @@ Proposals are listed as follows:
     ]
 ========================================================================================
 '''
-
 import torch
 import torchvision
 import torchvision.transforms as T
@@ -59,7 +58,7 @@ class FRCNN_Detector():
         return (pred)
 
     # Fucntion to get a list of proposals for a set of images
-    def get_data_preds(self, imgs, root_dir):
+    def get_data_preds(self, imgs, root_dir, proposal_count):
         set_prop_list = []
         total_imgs = len(imgs)
         img_idx = 0
@@ -104,14 +103,18 @@ class FRCNN_Detector():
                     img_proplist.append(prop)
 
             # If there are less than 8 proposals per image need to pad for batch size:
-            while len(img_proplist) < 8:
-                img_proplist.append([[np.zeros(4, dtype=int), 0.], [np.zeros(4, dtype=int), 0.]])
+            while len(img_proplist) < proposal_count:
+                img_proplist.append([[np.zeros(4, dtype=int), 0., 'null'], [np.zeros(4, dtype=int), 0., 'null']])
 
             # Add the img path to the list
-            img_proplist.append(i)
+            #img_proplist.append(i)
             set_prop_list.append(img_proplist)
 
         return set_prop_list
+
+    def __del__(self):
+    	del(self.model)
+    	torch.cuda.empty_cache()
 '''
 ===================== Testing stuff don't uncomment! ==============================
 det = FRCNN_Detector()

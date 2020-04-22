@@ -18,11 +18,11 @@ Img_list:
       [...................................] ]
 
 HOI_List:
-    [  [  [im1_hoi1_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] ],
-          [im1_hoi2_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] ],
+    [  [  [im1_hoi1_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] obj_name],
+          [im1_hoi2_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] obj_name],
           [........................................................................................................]  ]
-       [  [im2_hoi1_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] ],
-          [im2_hoi2_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] ],
+       [  [im2_hoi1_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] obj_name],
+          [im2_hoi2_id, inv, [ [bbox_h1], [bboxh2], ... ] , [ [bboxo1], [bboxo2], ... ], [ [conn1], [conn2], ... ] obj_name],
           [........................................................................................................]  ]  ]
 
 Bbox_list:
@@ -35,7 +35,7 @@ Conn_list:
 
 class HICO_DET_Dataloader(Dataset):
 
-    def convert_bb(self, data_split, data_list):
+    def convert_bb(self, data_split, data_list, action_list):
 
         img_list = []
         itr = 0
@@ -60,7 +60,6 @@ class HICO_DET_Dataloader(Dataset):
 
             # Add image properties to the image list:
             img_list.append(img_line)
-
             # Get the number of HOIs :
             num_hoi = i[2].size
 
@@ -77,6 +76,7 @@ class HICO_DET_Dataloader(Dataset):
                 hoi_inst = []
                 hoi_inst.append(hoi_id)
                 hoi_inst.append(invisible)
+                act_obj = action_list[hoi_id-1][0][0][0]
 
                 # Create containers for each:
                 bb_h_list = []
@@ -133,6 +133,7 @@ class HICO_DET_Dataloader(Dataset):
                 hoi_inst.append(bb_h_list)
                 hoi_inst.append(bb_o_list)
                 hoi_inst.append(conn_list)
+                hoi_inst.append(act_obj)
 
                 # Adding entry to HOI file for image
                 hoi_list.append(hoi_inst)
@@ -142,6 +143,16 @@ class HICO_DET_Dataloader(Dataset):
 
         img_list.append(img_line)
         return img_list
+
+    def get_action_list(self, actions):
+        list_hois = []
+        for i in range(len(actions)):
+            obj = actions[i][0][0][0]
+            interaction = actions[i][0][1][0]
+
+            list_hois.append([i, obj, interaction])
+
+        return list_hois
 
     def __load_mat__(self, matfile):
 
@@ -159,11 +170,13 @@ class HICO_DET_Dataloader(Dataset):
         # Actions:
         actions = bbs['list_action']
 
-        self.img_train = self.convert_bb('train', bb_train)
+        self.hoi_names = self.get_action_list(actions)
+
+        self.img_train = self.convert_bb('train', bb_train, actions)
         self.img_names_train = [img[0] for img in self.img_train[:-1]]
         self.num_train = len(self.img_train)
 
-        self.img_test = self.convert_bb('test', bb_test)
+        self.img_test = self.convert_bb('test', bb_test, actions)
         self.img_names_test = [img[0] for img in self.img_test[:-1]]
         self.num_test = len(self.img_test)
 
@@ -289,12 +302,13 @@ def get_interaction_pattern(w, h, bbox_h, bbox_o):
     object_channel = torch.from_numpy(object_channel)
 
     return torch.stack([human_channel, object_channel], dim=0)
-
 '''
 #Testing stuff delete later
-data = HICO_DET_Dataloader('~/Documents/hico/images/train2015', 'test2015','../anno_bbox.mat')
-for i in data.img_names_train:
-    print(i)
+data = HICO_DET_Dataloader('~/Documents/hico/images/train2015', 'test2015','../images/anno_bbox.mat')
+print(data.hoi_names)
+
+#for i in data.img_names_train:
+#    print(i)
 #print(data.img_names_test)
 #data.__get_human_crop__(1, 'test').show()
 #data.__get_object_crop__(1, 'test').show()

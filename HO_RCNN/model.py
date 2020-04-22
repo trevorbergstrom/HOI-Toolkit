@@ -9,6 +9,7 @@ import torch.optim as optim
 # Dataset stuff
 sys.path.append('../Dataset/Tools')
 from dataset_load import HICO_DET_Dataloader, get_interaction_pattern
+from batch_loader import Batch_Loader
 
 # Set anomaly tracking:
 torch.autograd.set_detect_anomaly(True)
