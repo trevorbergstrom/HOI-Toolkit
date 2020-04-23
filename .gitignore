@@ -17,4 +17,5 @@ Dataset/Tools/train2015/
 # Large matfiles:
 *.mat
 
-
+#picklefiles:
+*.pkl
