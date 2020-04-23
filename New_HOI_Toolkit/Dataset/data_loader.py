@@ -9,27 +9,35 @@ import sys
 import convert_hico_mat as tools
 sys.path.append('../FasterRCNN')
 from faster_RCNN_detector import FRCNN_Detector
+from random import choices
+import pickle
 
 '''
 This file contains the HICODET_Dataloader class
 '''
 class HICODET_test(Dataset):
-	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8):
+	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8, props_file='none'):
 
 		self.img_size = img_size
+		self.proposal_count = proposal_count
 		# Set path
 		self.img_folder_path = folder_path
 		# Create Simple Annotation lists
 		self.annotations= tools.convert_bbox_matlist(bbox_matlist['bbox_test'], bbox_matlist['list_action'])
 		self.interaction_prop_list = tools.convert_actions(bbox_matlist['list_action'])
-		self.img_paths = [img[0] for img in self.annotations[:50]] # <-------- [:-1]
+		self.img_names = [img[0] for img in self.annotations[:-1]] # <-------- [:-1]
+		#self.img_names = [img[0] for img in self.annotations[:50]] # <-------- [:-1]
 
-		# Now do proposal detection:
-		detector = FRCNN_Detector()
-		print('Test Set Generating Proposals with Detector')
-		self.proposals = detector.get_data_preds(self.img_paths, folder_path, proposal_count)
-		print('Done')
-		del(detector)
+		if props_file == 'none':
+			# Now do proposal detection:
+			detector = FRCNN_Detector()
+			print('Test Set Generating Proposals with Detector')
+			self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
+			print('Done')
+			del(detector)
+		else:
+			with open(props_file, 'rb') as f:
+				self.proposals = pickle.load(f)
 
 	def __len__(self):
 		return len(self.img_names)
@@ -45,8 +53,9 @@ class HICODET_test(Dataset):
 		annots = self.annotations[idx]
 		props = self.proposals[idx]
 
+		rand_props = choices(props, k=self.proposal_count)
 		crop_list = []
-		for pair in props:
+		for pair in rand_props:
 			crop_list.append([pair[0][0], pair[1][0]])
 
 		input_list = tools.multi_crop_img(crop_list, os.path.join(self.img_folder_path, img), self.img_size)
@@ -73,31 +82,37 @@ class HICODET_test(Dataset):
 		# then cross refrence all objects in the hois from the GTs. Add the hoi_id of any hoi that contains an interaction with the object:
 		final_hoi_list = []
 		for a_hoi in hois_in_img:
-			if self.interaction_prop_list[a_hoi][1] in objects_in_proposals:
+			if self.interaction_prop_list[a_hoi-1][1] in objects_in_proposals:
 				final_hoi_list.append(a_hoi)
 		
 		outputs = tools.build_gt_vec(final_hoi_list)
-
+		print(img)
 		return input_list, outputs
 #==========================================================================================================================================================================================
 class HICODET_train(Dataset):
-	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8):
+	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8, props_file='none'):
 		
 		self.img_size = img_size
+		self.proposal_count = proposal_count
 
 		self.img_folder_path = folder_path
 
 		self.annotations = tools.convert_bbox_matlist(bbox_matlist['bbox_train'], bbox_matlist['list_action'])
 		self.interaction_prop_list = tools.convert_actions(bbox_matlist['list_action'])
-		self.img_names = [img[0] for img in self.annotations[:50]] # <--- Change size for larger set
+		self.img_names = [img[0] for img in self.annotations[:-1]] # <--- Change size for larger set
+		#self.img_names = [img[0] for img in self.annotations[:50]] # <--- Change size for larger set
 
-		detector = FRCNN_Detector()
-		print('Test Set Generating Proposals with Detector')
-		self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
-		print('Done')
+		if props_file == 'none':
+			detector = FRCNN_Detector()
+			print('Test Set Generating Proposals with Detector')
+			self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
+			print('Done')
 
-		# We dont need FRCNN to hangout and clog GPU memory after generating proposals. 
-		del(detector)
+			# We dont need FRCNN to hangout and clog GPU memory after generating proposals. 
+			del(detector)
+		else:
+			with open(props_file, 'rb') as f:
+				self.proposals = pickle.load(f)
 
 	def __len__(self):
 		return len(self.img_names)
@@ -110,17 +125,22 @@ class HICODET_train(Dataset):
 		# Then we need to createt the ground truth vector. This vector is 1x600 and the only classes the show up are interactions from the img_hoi_list that have objects in the proposal. 
 
 		img = self.img_names[idx]
+		print(img)
 		annots = self.annotations[idx]
 		props = self.proposals[idx]
 
+		rand_props = choices(props, k=self.proposal_count)
+		#print(rand_props)
 		crop_list = []
-		for pair in props:
+		for pair in rand_props:
 			crop_list.append([pair[0][0], pair[1][0]])
 
 		input_list = tools.multi_crop_img(crop_list, os.path.join(self.img_folder_path, img), self.img_size)
 
 		for i in range(len(input_list)):
-			input_list[i].append( tools.create_interaction_pattern(annots[1], annots[2], crop_list[i][0], crop_list[i][1], self.img_size) )
+			ip = tools.create_interaction_pattern(annots[1], annots[2], crop_list[i][0], crop_list[i][1], self.img_size)
+			#print(ip.shape)
+			input_list[i].append(ip)
 	
 		# Next we need to grab all the hoi_ids from the list of GT hois
 		hois_in_img = []
@@ -141,9 +161,10 @@ class HICODET_train(Dataset):
 		# then cross refrence all objects in the hois from the GTs. Add the hoi_id of any hoi that contains an interaction with the object:
 		final_hoi_list = []
 		for a_hoi in hois_in_img:
-			if self.interaction_prop_list[a_hoi][1] in objects_in_proposals:
+			#print(a_hoi)
+			if self.interaction_prop_list[a_hoi-1][1] in objects_in_proposals:
 				final_hoi_list.append(a_hoi)
 		
 		outputs = tools.build_gt_vec(final_hoi_list)
-
+		
 		return input_list, outputs

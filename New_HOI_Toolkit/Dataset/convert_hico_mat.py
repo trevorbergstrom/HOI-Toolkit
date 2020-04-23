@@ -56,20 +56,30 @@ Returns:
 '''
 def multi_crop_img(bbox_list, img_path, size):
 	img = Image.open(img_path)
+	if img.mode == 'L':
+		img = img.convert('RGB')
+
 	list_crops = []
 	for box in bbox_list:
 		if box[0][0] == 0 and box[0][1] == 0 and box[0][2] == 0 and box[0][3] == 0:
-			human = torch.zeros(3,size,size)
-			obj = torch.zeros(3,size,size)
+			human = torch.zeros(1)
+			obj = torch.zeros(1)
 		else:
 			human = img.crop((box[0][0], box[0][2], box[0][1], box[0][3])).resize((size,size))
 			obj = img.crop((box[1][0], box[1][2], box[1][1], box[1][3])).resize((size,size))
 		
-			human = np.asarray(human).transpose(-1,0,1)
+			try:
+				human = np.asarray(human).transpose(-1,0,1)
+			except ValueError:
+				print('Error detect: ')
+				print(img_path)
+				print(img.mode)
+				print(img.getbands())
+				exit()
 			obj = np.asarray(obj).transpose(-1,0,1)
 
-			human = torch.from_numpy(human)
-			obj = torch.from_numpy(obj)
+			human = torch.from_numpy(human).type(torch.FloatTensor)
+			obj = torch.from_numpy(obj).type(torch.FloatTensor)
 
 		list_crops.append([human, obj])
 	img.close()
@@ -91,7 +101,7 @@ Returns:
 def create_interaction_pattern(w, h, bbox_h, bbox_o, size):
 	
 	if bbox_h[0] == 0 and bbox_h[1] == 0 and bbox_h[2] == 0 and bbox_h[3] == 0:
-		return torch.zeros(2,size,size)
+		return torch.zeros(1)
 
 	else:
 
@@ -109,7 +119,7 @@ def create_interaction_pattern(w, h, bbox_h, bbox_o, size):
 		#human_channel.show()
 		human_channel = human_channel.resize((size,size))
 		human_channel = np.asarray(human_channel)
-		human_channel = torch.from_numpy(human_channel)
+		human_channel = torch.from_numpy(human_channel).type(torch.FloatTensor)
 
 		object_channel = Image.new('1', (w,h), color=0)
 		object_channel = object_channel.crop((ip_x1, ip_y1, ip_x2, ip_y2))
@@ -118,7 +128,7 @@ def create_interaction_pattern(w, h, bbox_h, bbox_o, size):
 		#object_channel.show()
 		object_channel = object_channel.resize((size,size))
 		object_channel = np.asarray(object_channel)
-		object_channel = torch.from_numpy(object_channel)
+		object_channel = torch.from_numpy(object_channel).type(torch.FloatTensor)
 	
 		return torch.stack([human_channel, object_channel], dim=0)
 
@@ -278,7 +288,7 @@ def build_gt_vec(img_hoi_list):
 	classes = np.zeros(600)
 
 	for i in img_hoi_list:
-		classes[i] = 1.0
+		classes[i-1] = 1.0
 
 	classes = torch.from_numpy(classes)
 	
