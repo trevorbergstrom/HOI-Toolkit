@@ -9,7 +9,8 @@ def pickle_proposals(props, file_name):
 
 bbox_mat = tools.load_mat('images/anno_bbox.mat')
 test_data = HICODET_test('images/test2015', bbox_mat, props_file='images/pkl_files/fullTest.pkl')
-test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=8, shuffle=False)
+test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=False)
+
 
 img, outs = test_data[0]
 print(len(img))
@@ -19,12 +20,10 @@ print(img[7][2].shape)
 
 
 for img_list, outputs in test_data_loader:
-	print(img_list.shape)
+	#print(img_list.shape)
 	print('Images len = ' + str(len(img_list)))
 	print('labels shape = ' + str(outputs.shape))
-	print(len(img_list))
-	print(len(img_list[0]))
-	print(len(img_list[0][0]))
+	print(img_list[1][2].shape)
 
 '''
 train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')

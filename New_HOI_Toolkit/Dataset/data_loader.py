@@ -133,7 +133,8 @@ class HICODET_train(Dataset):
 		#print(rand_props)
 		crop_list = []
 		for pair in rand_props:
-			crop_list.append([pair[0][0], pair[1][0]])
+			if pair[0][0][0] != 0 and pair[0][0][1] != 0 and pair[0][0][2] != 0 and pair[0][0][3] != 0:
+				crop_list.append([pair[0][0], pair[1][0]])
 
 		input_list = tools.multi_crop_img(crop_list, os.path.join(self.img_folder_path, img), self.img_size)
 

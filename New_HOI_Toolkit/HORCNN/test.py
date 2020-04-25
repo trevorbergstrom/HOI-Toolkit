@@ -11,6 +11,14 @@ sys.path.append('../Dataset')
 from data_loader import HICODET_train, HICODET_test
 from horcnn_model import HO_RCNN
 
+def compute_loss(preds, targets, loss_fn):
+	total_loss = torch.tensor(0.)
+
+	for i in range(len(targets)):
+		total_loss += loss_fn(preds, torch.tensor(targets[i]).cuda())
+
+	return total_loss / len(targets)
+
 epochs = 30
 learn_rate = .001
 
@@ -28,48 +36,51 @@ optimizer = optim.SGD(model.parameters(), lr = learn_rate)
 test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
 test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=True)
 train_data = HICODET_train('../Dataset/images/train2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTrain.pkl')
-train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=8, shuffle=True)
+train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=1, shuffle=False)
 
 # For each epoch:
 for epoch in range(1):
 	# iterate through dataloader
-	for batch, output_labels in train_data_loader:
-		# Create a list to save individual pair predictions
-		# For each set of pairs (hop)
-		print('here I am')
-		losses = []
-		for i in range(len(batch)):
-			print(len(batch))
+	losses = []
+	batch_sz = 8
+	img_count = 0
+	batch_loss = 0
+
+	for in_proposals, output_labels in train_data_loader:
+		# Since batch size is set at 1 we need to loop through 8 images before updating
+		
+		for i in range(len(in_proposals)):
+			print('Going through proposal #' + str(i))
 			predictions = []
 			num_props = 0
-			for hop_prop in batch[i]:
-				if hop_prop[0].shape != torch.Size([1]):
-					human = hop_prop[0].unsqueeze(0).cuda()
-					obj = hop_prop[1].unsqueeze(0).cuda()
-					pair = hop_prop[2].unsqueeze(0).cuda()
-					print(human.shape)
-					print(obj.shape)
-					print(pair.shape)
-					print(len(batch[i]))
-					print(len(hop_prop))
-					print(hop_prop.shape)
-					print(len(hop_prop[0]))
+			# For each proposal in the image
+			for hop_prop in in_proposals:
 
-					with torch.enable_grad():
-						predictions.append(model(human.float(), obj.float(), pair.float()))
-					num_props += 1
+				human = hop_prop[0].cuda()
+				obj = hop_prop[1].cuda()
+				pair = hop_prop[2].cuda()
 
-			# Now average all the predictions in this image:
-			avg_pred = torch.zeros([1,600], dtype=torch.float64).cuda()
-			for i in predictions:
-				avg_pred = torch.add(avg_pred, predictions[i])
-			avg_pred = torch.div(avg_pred, num_props)
+				with torch.enable_grad():
+					predictions.append(model(human.float(), obj.float(), pair.float()))
+				num_props += 1
 
-			losses.append(criterion(avg_pred, outpus[i].cuda()))
+		# Now average all the predictions in this image:
+		avg_pred = torch.zeros([1,600], dtype=torch.float64).cuda()
+		for p in predictions:
+			avg_pred = torch.add(avg_pred, p)
+		avg_pred = torch.div(avg_pred, num_props)
 
-		avg_loss = sum(losses) / len(losses)
-		avg_loss.backward()
-		optimizer.step()
+		# Compute loss over all the classes here.
+		batch_loss += compute_loss(avg_pred, output_labels)
+
+		img_count += 1
+
+		if img_count == batch_sz:
+			print('Now update')
+			img_count = 0
+			batch_loss.backward()
+			optimizer.step()
+		
 
 
 
