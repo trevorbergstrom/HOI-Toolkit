@@ -13,10 +13,10 @@ from horcnn_model import HO_RCNN
 
 def compute_loss(preds, targets, loss_fn):
 	total_loss = torch.tensor(0.)
-
+	print(targets.shape)
 	for i in range(len(targets)):
-		total_loss += loss_fn(preds, torch.tensor(targets[i]).cuda())
-
+		total_loss += loss_fn(preds, targets[0][i].unsqueeze(0).type(torch.long).cuda())
+	print('Memalloc after loss: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
 	return total_loss / len(targets)
 
 epochs = 30
@@ -49,9 +49,9 @@ for epoch in range(1):
 	for in_proposals, output_labels in train_data_loader:
 		# Since batch size is set at 1 we need to loop through 8 images before updating
 		
+		predictions = []
 		for i in range(len(in_proposals)):
 			print('Going through proposal #' + str(i))
-			predictions = []
 			num_props = 0
 			# For each proposal in the image
 			for hop_prop in in_proposals:
@@ -60,18 +60,21 @@ for epoch in range(1):
 				obj = hop_prop[1].cuda()
 				pair = hop_prop[2].cuda()
 
-				with torch.enable_grad():
+				with torch.no_grad():
 					predictions.append(model(human.float(), obj.float(), pair.float()))
 				num_props += 1
-
+				del human
+				del obj
+				del pair
+		print('Memalloc after forward: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
 		# Now average all the predictions in this image:
 		avg_pred = torch.zeros([1,600], dtype=torch.float64).cuda()
 		for p in predictions:
 			avg_pred = torch.add(avg_pred, p)
 		avg_pred = torch.div(avg_pred, num_props)
-
+		print('Memalloc after avg: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
 		# Compute loss over all the classes here.
-		batch_loss += compute_loss(avg_pred, output_labels)
+		batch_loss += compute_loss(avg_pred, output_labels, criterion)
 
 		img_count += 1
 
