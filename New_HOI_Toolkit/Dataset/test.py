@@ -23,6 +23,7 @@ for img_list, outputs in test_data_loader:
 	#print(img_list.shape)
 	print('Images len = ' + str(len(img_list)))
 	print('labels shape = ' + str(outputs.shape))
+	print(outputs)
 	print(img_list[1][2].shape)
 
 '''

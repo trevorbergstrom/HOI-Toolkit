@@ -85,8 +85,8 @@ class HICODET_test(Dataset):
 			if self.interaction_prop_list[a_hoi-1][1] in objects_in_proposals:
 				final_hoi_list.append(a_hoi)
 		
-		outputs = tools.build_gt_vec(final_hoi_list)
-		print(img)
+		#outputs = tools.build_gt_vec(final_hoi_list)
+		outputs = final_hoi_list
 		return input_list, outputs
 #==========================================================================================================================================================================================
 class HICODET_train(Dataset):
@@ -166,6 +166,8 @@ class HICODET_train(Dataset):
 			if self.interaction_prop_list[a_hoi-1][1] in objects_in_proposals:
 				final_hoi_list.append(a_hoi)
 		
-		outputs = tools.build_gt_vec(final_hoi_list)
-		
+		#outputs = tools.build_gt_vec(final_hoi_list)
+		#print(final_hoi_list)
+		outputs = final_hoi_list
+
 		return input_list, outputs

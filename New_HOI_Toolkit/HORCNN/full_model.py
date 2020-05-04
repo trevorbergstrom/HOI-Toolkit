@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import autograd
+import torchvision
+from torchvision import models
 from PIL import Image
 import numpy as np
 import sys
@@ -15,82 +17,55 @@ from data_loader import HICODET_train, HICODET_test
 # Set anomaly tracking:
 torch.autograd.set_detect_anomaly(True)
 
-class HO_RCNN(nn.Module):
+# These two are just caffe net, only have alexnet but they are the same
+human_stream = models.alexnet(pretrained=True)
+object_stream = models.alexnet(pretrained=True)
+
+class HO_RCNN_P(nn.Module):
 
     def __init__(self):
-        super(HO_RCNN, self).__init__()
+        super(HO_RCNN_P, self).__init__()
 
-        # Human Stream Layers:
-        self.human_cnn_layers = nn.Sequential(
-                # First convLayer:
-                nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=0),
-                nn.ReLU(inplace=True),
+        # Pairwise Stream Layers:
+        self.pairwise_cnn_layers = nn.Sequential(
+                # Conv Layer 1:
+                nn.Conv2d(2, 64, kernel_size=5),
+                #nn.ReLU(inplace=True),
+                nn.ReLU(),
                 nn.MaxPool2d(kernel_size=3, stride=2),
-                nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75),
-                # Second convLayer:
-                nn.Conv2d(96, 256, kernel_size=5, padding=2, groups=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2),
-                nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75),
-                # Third ConvLayer:
-                nn.Conv2d(256, 384, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True),
-                # Fourth ConvLayer:
-                nn.Conv2d(384, 384, kernel_size=3, padding=1, groups=2),
-                nn.ReLU(inplace=True),
-                # Fifth ConvLayer:
-                nn.Conv2d(384, 256, kernel_size=3, padding=1, groups=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2),
+                # Conv layer 2:
+                nn.Conv2d(64, 32, kernel_size=5),
+                #nn.ReLU(inplace=True),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2)
                 )
-        self.human_linear_layers = nn.Sequential(
-                # FC-Layer 1:
-                nn.Linear(6*6*256, 4096),
+        self.pairwise_linear_layers = nn.Sequential(
+                # FC 1:
+                nn.Linear(32*60*60, 256),
                 #nn.ReLU(inplace=True),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.5),
-                # FC-Layer 2:
-                nn.Linear(4096, 4096),
-                #nn.ReLU(inplace=True),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.5),
-                # Final Class Score layer:
-                nn.Linear(4096, 600)
+                nn.ReLU(),
+                nn.Linear(256, 600)
                 )
 
     # Forward Pass Function:
-    def forward(self, img_human):
+    def forward(self, img_human, img_object, img_pairwise):
 
-        # Human Stream Pass:
-        human_stream = self.human_cnn_layers(img_human)
-        # Flatten for linear layers
-        human_stream = torch.flatten(human_stream, 1)
-        human_stream = self.human_linear_layers(human_stream)
+        # Pairwise Stream Pass:
+        pairwise_stream = self.pairwise_cnn_layers(img_pairwise)
+        pairwise_stream = torch.flatten(pairwise_stream, 1)
+        pairwise_stream = self.pairwise_linear_layers(pairwise_stream)
 
-        return human_stream
+        return pairwise_stream
 
-def compute_loss(preds, targets, loss_fn):
-	total_loss = torch.tensor(0.).cuda()
-	
-	for i in range(len(targets)):
-		total_loss += loss_fn(preds, targets[0][i].unsqueeze(0).type(torch.long).cuda())
-	print('Memalloc after loss: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
-	print(total_loss.is_cuda)
-	return total_loss / len(targets)
+pairwise_stream = HO_RCNN_P()
 
-epochs = 30
-learn_rate = .001
+human_stream.cuda()
+object_stream.cuda()
+pairwise_stream.cuda()
 
-bbox_mat = loadmat('../Dataset/images/anno_bbox.mat')
-
-model = HO_RCNN()
-model.cuda()
-
-for param in model.parameters():
-	param.requires_grad = True
-
+params = list(human_stream.parameters()) + list(object_stream.parameters()) + list(pairwise_stream.parameters())
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(model.parameters(), lr = learn_rate)
+optimizer = optim.SGD(params, lr = 0.0001)
 
 test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
 test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=True)
@@ -122,9 +97,11 @@ for epoch in range(1):
 			for hop_prop in in_proposals:
 
 				human = hop_prop[0].cuda()
+				obj  = hop_prop[1].cuda()
+				pair = hop_prop[2].cuda()
 
 				with torch.enable_grad():
-					predictions.append(model(human.float()))
+					predictions.append( torch.div(torch.add(human_stream(human.float()), torch.add(obj.float(), pair.float())), 8.) )
 				num_props += 1
 				del human
 
