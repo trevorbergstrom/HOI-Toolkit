@@ -103,9 +103,10 @@ class FRCNN_Detector():
                     img_proplist.append(prop)
 
             # If there are less than 8 proposals per image need to pad for batch size:
+            '''
             while len(img_proplist) < proposal_count:
                 img_proplist.append([[np.zeros(4, dtype=int), 0., 'null'], [np.zeros(4, dtype=int), 0., 'null']])
-
+            '''
             # Add the img path to the list
             #img_proplist.append(i)
             set_prop_list.append(img_proplist)
