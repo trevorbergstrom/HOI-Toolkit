@@ -10,7 +10,7 @@ def pickle_proposals(props, file_name):
 
 bbox_mat = tools.load_mat('images/anno_bbox.mat')
 
-#miou = tools.compute_iou([50,50,100,100], [75,125,75,125])
+#miou = tools.compute_iou([10,10,80,80], [30,60,30,60])
 #print(miou)
 #test_data = HICODET_test('images/test2015', bbox_mat, props_file='images/pkl_files/fullTest.pkl')
 #test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=False)
@@ -18,16 +18,21 @@ train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_
 train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=1, shuffle=False)
 
 #print(train_data.proposals[0])
-imgs, lables = train_data[0]
-print(lables)
+#for i in range(10):
+#imgs, lables = train_data[5]
+#print(lables)
 #print(test_data.proposals[0])
 #print(test_data.annotations[0])
 #img, outs = train_data[0]
 
 
-#for img_list, outputs in train_data_loader:
-	#print(img_list.shape)
-	#print('one')
+for img_list, outputs in train_data_loader:
+	#print(type(img_list))
+	#print(img_list[0][0].dtype)
+	print(len(img_list))
+	#print(type(outputs))
+	#print(outputs[0][0].dtype)
+	print(len(outputs))
 
 '''
 train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')

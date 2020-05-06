@@ -98,7 +98,7 @@ def crop_pair(bbox_human, bbox_object, img_path, size):
     human = img.crop((bbox_human[0], bbox_human[1], bbox_human[2], bbox_human[3])).resize((size,size))
     obj = img.crop((bbox_object[0], bbox_object[1], bbox_object[2], bbox_object[3])).resize((size,size))
 
-    return np.asarray(human).transpose(-1,0,1), np.asarray(obj).transpose(-1,0,1)
+    return np.asarray(human).transpose(-1,0,1).astype(np.int32), np.asarray(obj).transpose(-1,0,1).astype(np.int32)
 ''' 
 =====================================================================================================================================
 create_interaction_pattern function:
@@ -422,37 +422,22 @@ def build_gt_vec(img_hoi_list):
 	#classes = torch.from_numpy(classes).type(torch.long)
 	
 	return classes
-'''
-def compute_iou(bbox_prop, bbox_truth):
-    # bbox = x1, x2, y1, y2
-    print(bbox_prop)
-    print(bbox_truth)
-    x1 = max(bbox_prop[0], bbox_truth[0])
-    x2 = min(bbox_prop[2], bbox_truth[1])
-    y1 = max(bbox_prop[1], bbox_truth[2])
-    y2 = min(bbox_prop[3], bbox_truth[3])
-    print(x1)
-    print(x2)
-    print(y1)
-    print(y2)
-
-    area = max(0, x2 - x1 + 1) * max(0, y2 - y1 + 1)
-
-    area_prop = (bbox_prop[1] - bbox_prop[0] + 1) * (bbox_prop[3] - bbox_prop[2] + 1)
-    area_truth = (bbox_truth[1] - bbox_truth[0] + 1) * (bbox_truth[3] - bbox_truth[2] + 1)
-
-    return (float(area) / float(area_prop + area_truth - area))
-'''
 
 def compute_iou(bbox_prop, bbox_truth):
-    print(bbox_prop)
-    print(bbox_truth)
-
+    bbox_prop = bbox_prop.astype(np.int32)
+    bbox_truth = np.array(bbox_truth).astype(np.int32)
     bbox_prop = bbox_prop.tolist()
+    bbox_truth = bbox_truth.tolist()
+
     x1 = max(bbox_prop[0], bbox_truth[0])
     x2 = min(bbox_prop[2], bbox_truth[1])
     y1 = max(bbox_prop[1], bbox_truth[2])
     y2 = min(bbox_prop[3], bbox_truth[3])
+
+    x_bound = x2-x1
+    y_bound = y2-y1
+    if x_bound <=0 or y_bound <= 0:
+        return 0.0
 
     area_intersection = (x2-x1) * (y2-y1)
     area_prop = ((bbox_prop[2] - bbox_prop[0]) * (bbox_prop[3] - bbox_prop[1])) 

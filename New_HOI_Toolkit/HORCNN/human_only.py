@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import autograd
+from torchvision import models
 from PIL import Image
 import numpy as np
 import sys
@@ -15,59 +16,7 @@ from data_loader import HICODET_train, HICODET_test
 # Set anomaly tracking:
 torch.autograd.set_detect_anomaly(True)
 
-class HO_RCNN(nn.Module):
 
-    def __init__(self):
-        super(HO_RCNN, self).__init__()
-
-        # Human Stream Layers:
-        self.human_cnn_layers = nn.Sequential(
-                # First convLayer:
-                nn.Conv2d(3, 96, kernel_size=11, stride=4, padding=0),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2),
-                nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75),
-                # Second convLayer:
-                nn.Conv2d(96, 256, kernel_size=5, padding=2, groups=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2),
-                nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75),
-                # Third ConvLayer:
-                nn.Conv2d(256, 384, kernel_size=3, padding=1),
-                nn.ReLU(inplace=True),
-                # Fourth ConvLayer:
-                nn.Conv2d(384, 384, kernel_size=3, padding=1, groups=2),
-                nn.ReLU(inplace=True),
-                # Fifth ConvLayer:
-                nn.Conv2d(384, 256, kernel_size=3, padding=1, groups=2),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2),
-                )
-        self.human_linear_layers = nn.Sequential(
-                # FC-Layer 1:
-                nn.Linear(6*6*256, 4096),
-                #nn.ReLU(inplace=True),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.5),
-                # FC-Layer 2:
-                nn.Linear(4096, 4096),
-                #nn.ReLU(inplace=True),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.5),
-                # Final Class Score layer:
-                nn.Linear(4096, 600)
-                )
-
-    # Forward Pass Function:
-    def forward(self, img_human):
-
-        # Human Stream Pass:
-        human_stream = self.human_cnn_layers(img_human)
-        # Flatten for linear layers
-        human_stream = torch.flatten(human_stream, 1)
-        human_stream = self.human_linear_layers(human_stream)
-
-        return human_stream
 
 def compute_loss(preds, targets, loss_fn):
 	total_loss = torch.tensor(0.).cuda()
@@ -83,13 +32,15 @@ learn_rate = .001
 
 bbox_mat = loadmat('../Dataset/images/anno_bbox.mat')
 
-model = HO_RCNN()
+model = models.alexnet(pretrained=True)
+model.classifier[6] = nn.Linear(4096,600)
+model = model.train()
 model.cuda()
 
 for param in model.parameters():
 	param.requires_grad = True
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.SGD(model.parameters(), lr = learn_rate)
 
 test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
@@ -107,6 +58,9 @@ for epoch in range(1):
 
 	cur_img_list = []
 	cur_i = 1
+	optimizer.zero_grad()
+
+
 	for in_proposals, output_labels in train_data_loader:
 		# Since batch size is set at 1 we need to loop through 8 images before updating
 		cur_img_list.append(cur_i)
@@ -118,43 +72,55 @@ for epoch in range(1):
 		for i in range(len(in_proposals)):
 			print('Going through proposal #' + str(i))
 			
-			# For each proposal in the image
-			for hop_prop in in_proposals:
+			#human = torch.from_numpy(in_proposals[i][0]).cuda()
+			human = in_proposals[i][0].cuda()
+			
+			with torch.enable_grad():
+				pred = model(human.float())
+			#print(output_labels)
+			#losses.append(criterion(pred, torch.from_numpy(output_labels[i]) ))
+			loss = criterion(pred, output_labels[i].float().cuda())
 
-				human = hop_prop[0].cuda()
+			print('Updating...')
+			img_count = 0
+			total_loss = loss
+			print('Loss for batch: ' + str(total_loss))
+			optimizer.zero_grad()
+			total_loss.backward()
+			optimizer.step()
+			losses.clear()
+	'''
+	for in_proposals, output_labels in train_data_loader:
+		# Since batch size is set at 1 we need to loop through 8 images before updating
+		cur_img_list.append(cur_i)
+		cur_i += 1
 
-				with torch.enable_grad():
-					predictions.append(model(human.float()))
-				num_props += 1
-				del human
-
-		print('Memalloc after forward: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
-		# Now average all the predictions in this image:
-		avg_pred = torch.zeros([1,600], dtype=torch.float64).cuda()
-		for p in predictions:
-			avg_pred = torch.add(avg_pred, p)
-		avg_pred = torch.div(avg_pred, num_props)
-		print('Memalloc after avg: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
-		# Compute loss over all the classes here.
-		batch_loss += compute_loss(avg_pred, output_labels, criterion)
-		del avg_pred
-		del predictions
-		del output_labels
-		del in_proposals
+		predictions = []
+		num_props = 0
+		
+		for i in range(len(in_proposals)):
+			print('Going through proposal #' + str(i))
+			
+			#human = torch.from_numpy(in_proposals[i][0]).cuda()
+			human = in_proposals[i][0].cuda()
+			
+			with torch.enable_grad():
+				pred = model(human.float())
+			#print(output_labels)
+			#losses.append(criterion(pred, torch.from_numpy(output_labels[i]) ))
+			losses.append(criterion(pred, output_labels[i].float().cuda() ))
 
 		img_count += 1
 
 		if img_count == batch_sz:
-			print('Now update')
+			print('Updating...')
 			img_count = 0
-			try:
-				with autograd.detect_anomaly():
-					batch_loss.backward(retain_graph=True)
-				optimizer.step()
-				del batch_loss
-				batch_loss = 0
-			except RuntimeError:
-				print('Error occured in batch:')
-				print(cur_img_list)
-				continue
+			total_loss = sum(losses)
+			print('Loss for batch: ' + str(total_loss))
+			optimizer.zero_grad()
+			total_loss.backward()
+			optimizer.step()
+			losses.clear()
+	'''	
+
 				
