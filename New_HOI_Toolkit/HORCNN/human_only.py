@@ -8,6 +8,7 @@ import numpy as np
 import sys
 import torch.optim as optim
 from scipy.io import loadmat
+import random
 
 # Dataset stuff
 sys.path.append('../Dataset')
@@ -43,24 +44,52 @@ for param in model.parameters():
 criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.SGD(model.parameters(), lr = learn_rate)
 
-test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
-test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=True)
-train_data = HICODET_train('../Dataset/images/train2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTrain.pkl')
-train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=1, shuffle=False)
+#test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
+#test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=True)
+train_data = HICODET_train('../Dataset/images/train2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTrain.pkl', props_list = '../Dataset/images/pkl_files/fullTrain_proposals.pkl')
+n_total = len(train_data)
+n_valid = int(n_total * 0.2)
+n_train = int(n_total - n_valid) 
+#print(n_total)
+#print(n_valid)
+#print(n_train)
+
+train_set, valid_set = torch.utils.data.random_split(train_data, (n_train, n_valid))
+
+train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=8, shuffle=True)
+valid_data_loader = torch.utils.data.DataLoader(dataset = valid_set, batch_size=1, shuffle=False)
 
 # For each epoch:
 for epoch in range(1):
 	# iterate through dataloader
 	losses = []
-	batch_sz = 8
+	batch_count = 0
 	img_count = 0
-	batch_loss = 0
-
-	cur_img_list = []
-	cur_i = 1
-	optimizer.zero_grad()
 
 
+	#optimizer.zero_grad()
+
+	for human_crop, object_crop, int_pattern, outputs in train_data_loader:
+		batch_count += 1
+		human_crop = human_crop.float().cuda()
+		#object_crop = object_crop.float().cuda()
+		#int_pattern = int_pattern.float().cuda()
+		outputs = outputs.float().cuda()
+
+		with torch.enable_grad():
+			predictions = model(human_crop)
+		
+		batch_loss = criterion(predictions, outputs)
+		
+		if batch_count % 100 == 0:
+			print('Batch# ' + str(batch_count))
+			print(batch_loss.item())
+
+		optimizer.zero_grad()
+		batch_loss.backward()
+		optimizer.step()
+
+'''
 	for in_proposals, output_labels in train_data_loader:
 		# Since batch size is set at 1 we need to loop through 8 images before updating
 		cur_img_list.append(cur_i)
@@ -89,7 +118,7 @@ for epoch in range(1):
 			total_loss.backward()
 			optimizer.step()
 			losses.clear()
-	'''
+
 	for in_proposals, output_labels in train_data_loader:
 		# Since batch size is set at 1 we need to loop through 8 images before updating
 		cur_img_list.append(cur_i)

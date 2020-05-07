@@ -97,7 +97,8 @@ def crop_pair(bbox_human, bbox_object, img_path, size):
 
     human = img.crop((bbox_human[0], bbox_human[1], bbox_human[2], bbox_human[3])).resize((size,size))
     obj = img.crop((bbox_object[0], bbox_object[1], bbox_object[2], bbox_object[3])).resize((size,size))
-
+    #human.show()
+    #obj.show()
     return np.asarray(human).transpose(-1,0,1).astype(np.int32), np.asarray(obj).transpose(-1,0,1).astype(np.int32)
 ''' 
 =====================================================================================================================================

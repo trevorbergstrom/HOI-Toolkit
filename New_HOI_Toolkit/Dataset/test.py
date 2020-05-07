@@ -14,26 +14,21 @@ bbox_mat = tools.load_mat('images/anno_bbox.mat')
 #print(miou)
 #test_data = HICODET_test('images/test2015', bbox_mat, props_file='images/pkl_files/fullTest.pkl')
 #test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=False)
-train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')
-train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=1, shuffle=False)
+#train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')
+train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl', props_list = 'images/pkl_files/fullTrain_proposals.pkl')
+train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=8, shuffle=False)
 
-#print(train_data.proposals[0])
-#for i in range(10):
-#imgs, lables = train_data[5]
-#print(lables)
-#print(test_data.proposals[0])
-#print(test_data.annotations[0])
-#img, outs = train_data[0]
+#img_h, img_o, img_pair, outs = train_data[0]
+#print(img_h)
+#print(img_o)
+#print(img_pair)
+#print(outs)
 
-
-for img_list, outputs in train_data_loader:
-	#print(type(img_list))
-	#print(img_list[0][0].dtype)
-	print(len(img_list))
-	#print(type(outputs))
-	#print(outputs[0][0].dtype)
-	print(len(outputs))
-
+for h, o, p, out in train_data_loader:
+	print(h.shape)
+	print(o.shape)
+	print(p.shape)
+	print(out.shape)
 '''
 train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')
 
