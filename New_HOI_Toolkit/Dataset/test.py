@@ -14,15 +14,11 @@ bbox_mat = tools.load_mat('images/anno_bbox.mat')
 #print(miou)
 #test_data = HICODET_test('images/test2015', bbox_mat, props_file='images/pkl_files/fullTest.pkl')
 #test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=False)
-#train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')
-train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl', props_list = 'images/pkl_files/fullTrain_proposals.pkl')
+train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl')
+#train_data = HICODET_train('images/train2015', bbox_mat, props_file='images/pkl_files/fullTrain.pkl', props_list = 'images/pkl_files/fullTrain_proposals.pkl')
 train_data_loader = torch.utils.data.DataLoader(dataset = train_data, batch_size=8, shuffle=False)
 
-#img_h, img_o, img_pair, outs = train_data[0]
-#print(img_h)
-#print(img_o)
-#print(img_pair)
-#print(outs)
+print(train_data.no_interaction_idxs)
 
 for h, o, p, out in train_data_loader:
 	print(h.shape)

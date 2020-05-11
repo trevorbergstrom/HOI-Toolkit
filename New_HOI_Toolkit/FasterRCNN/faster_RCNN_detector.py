@@ -35,17 +35,17 @@ class FRCNN_Detector():
         # Plain English Category names (not needed but good to have)
         self.COCO_INSTANCE_CATEGORY_NAMES = [
         '__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
-        'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A', 'stop sign',
-        'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+        'train', 'truck', 'boat', 'traffic light', 'fire_hydrant', 'N/A', 'stop_sign',
+        'parking_meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
         'elephant', 'bear', 'zebra', 'giraffe', 'N/A', 'backpack', 'umbrella', 'N/A', 'N/A',
-        'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-        'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
-        'bottle', 'N/A', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
-        'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-        'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'N/A', 'dining table',
+        'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports_ball',
+        'kite', 'baseball_bat', 'baseball_glove', 'skateboard', 'surfboard', 'tennis_racket',
+        'bottle', 'N/A', 'wine_glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+        'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot_dog', 'pizza',
+        'donut', 'cake', 'chair', 'couch', 'potted_plant', 'bed', 'N/A', 'dining_table',
         'N/A', 'N/A', 'toilet', 'N/A', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
         'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'N/A', 'book',
-        'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+        'clock', 'vase', 'scissors', 'teddy_bear', 'hair_drier', 'toothbrush'
         ]
 
     # Function to predict a single image
@@ -68,7 +68,7 @@ class FRCNN_Detector():
             img_idx = img_idx+1
             # Compute proposals
             x = self.get_predictions(os.path.join(root_dir, i), 0.001)
-
+            print(x)
             img_proplist = []
             objs = []
             humans = []
@@ -116,6 +116,16 @@ class FRCNN_Detector():
     def __del__(self):
     	del(self.model)
     	torch.cuda.empty_cache()
+
+def sort_scores(prop_list):
+    for i in range(len(prop_list)):
+        for j in range(len(prop_list) - i - 1):
+            if prop_list[j][1] < prop_list[j+1][1]:
+                swp = prop_list[j]
+                prop_list[j] = prop_list[j+1]
+                prop_list[j+1] = swp
+
+
 '''
 ===================== Testing stuff don't uncomment! ==============================
 det = FRCNN_Detector()

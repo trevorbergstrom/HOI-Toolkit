@@ -22,12 +22,20 @@ torch.autograd.set_detect_anomaly(True)
 
 def compute_loss(preds, targets, loss_fn):
 	total_loss = torch.tensor(0.).cuda()
-	
+	#loss_list = torch.from_numpy(targets)
+	batch_loss = []
 	for i in range(len(targets)):
-		total_loss += loss_fn(preds, targets[0][i].unsqueeze(0).type(torch.long).cuda())
-	print('Memalloc after loss: ' + str(torch.cuda.memory_allocated(0) / 1073741824) + "GB")
-	print(total_loss.is_cuda)
-	return total_loss / len(targets)
+		prop = targets[i]
+		print(prop)
+		prop_loss = []
+		for j in range(len(prop)):
+			label = np.zeros(600)
+			idx = prop[j] - 1
+			print(idx)
+			label[idx] = 1.0
+			prop_loss.append(loss_fn(preds[i], torch.from_numpy(label).cuda()))
+		batch_loss.append(sum(prop_loss))
+	return(torch.tensor(sum(batch_loss)).cuda())
 
 epochs = 30
 learn_rate = .001
@@ -92,12 +100,14 @@ for param in pairwise_model.parameters():
 	param.requires_grad = True
 
 criterion = nn.BCEWithLogitsLoss()
+#criterion = nn.CrossEntropyLoss()
 all_params = list(human_model.parameters()) + list(object_model.parameters()) + list(pairwise_model.parameters())
 optimizer = optim.SGD(all_params, lr = learn_rate)
 
 #test_data = HICODET_test('../Dataset/images/test2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTest.pkl')
 #test_data_loader = torch.utils.data.DataLoader(dataset = test_data, batch_size=1, shuffle=True)
 train_data = HICODET_train('../Dataset/images/train2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTrain.pkl', props_list = '../Dataset/images/pkl_files/fullTrain_proposals.pkl')
+#train_data = HICODET_train('../Dataset/images/train2015', bbox_mat, props_file='../Dataset/images/pkl_files/fullTrain.pkl')
 n_total = len(train_data)
 n_valid = int(n_total * 0.2)
 n_train = int(n_total - n_valid) 
@@ -129,7 +139,7 @@ for epoch in range(1):
 		human_crop = human_crop.float().cuda()
 		object_crop = object_crop.float().cuda()
 		int_pattern = int_pattern.float().cuda()
-		outputs = outputs.float().cuda()
+		#outputs = outputs.float().cuda()
 
 		with torch.enable_grad():
 			human_pred = human_model(human_crop)
@@ -138,8 +148,11 @@ for epoch in range(1):
 		
 		total_pred = torch.add(torch.add(human_pred, object_pred), pairwise_pred)
 
-		batch_loss = criterion(total_pred, outputs)
+		batch_loss = criterion(total_pred, outputs.float().cuda())
+		#batch_loss = compute_loss(total_pred, outputs, criterion) 
 		
+		print(batch_loss)
+
 		if batch_count % 100 == 0:
 			print('Batch# ' + str(batch_count))
 			print(batch_loss.item())

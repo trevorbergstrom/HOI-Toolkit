@@ -41,12 +41,15 @@ Returns:
 '''
 def convert_actions(action_mat_list):
     list_hois = []
+    no_interactions = {}
     for i in range(len(action_mat_list)):
         obj = action_mat_list[i][0][0][0]
         interaction = action_mat_list[i][0][1][0]
         list_hois.append([i, obj, interaction])
+        if interaction == 'no_interaction':
+            no_interactions[obj] = i+1
 
-    return list_hois
+    return list_hois, no_interactions
 
 ''' 
 =====================================================================================================================================
