@@ -13,10 +13,10 @@ from data_loader import HICODET_train, HICODET_test
 # Set anomaly tracking:
 torch.autograd.set_detect_anomaly(True)
 
-class HO_RCNN(nn.Module):
+class HO_RCNN_Pair(nn.Module):
 
     def __init__(self):
-        super(HO_RCNN, self).__init__()
+        super(HO_RCNN_Pair, self).__init__()
 
         # Pairwise Stream Layers:
         self.pairwise_cnn_layers = nn.Sequential(
@@ -40,7 +40,7 @@ class HO_RCNN(nn.Module):
                 )
 
     # Forward Pass Function:
-    def forward(self, img_human, img_object, img_pairwise):
+    def forward(self, img_pairwise):
 
         # Pairwise Stream Pass:
         pairwise_stream = self.pairwise_cnn_layers(img_pairwise)

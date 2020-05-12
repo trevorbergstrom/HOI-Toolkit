@@ -68,7 +68,6 @@ class FRCNN_Detector():
             img_idx = img_idx+1
             # Compute proposals
             x = self.get_predictions(os.path.join(root_dir, i), 0.001)
-            print(x)
             img_proplist = []
             objs = []
             humans = []

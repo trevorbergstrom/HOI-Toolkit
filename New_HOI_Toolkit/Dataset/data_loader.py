@@ -97,6 +97,7 @@ class HICODET_test(Dataset):
 class HICODET_train(Dataset):
 	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8, props_file='none', props_list='none'):
 		
+		bbox_matlist = loadmat(bbox_matlist)	
 		self.img_size = img_size
 		self.proposal_count = proposal_count
 
