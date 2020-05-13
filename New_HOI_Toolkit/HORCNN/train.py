@@ -30,24 +30,32 @@ torch.autograd.set_detect_anomaly(True)
 def main():
 	parser = argparse.ArgumentParser(description="Training the HORCNN Model!")
 	parser.add_argument("bbmatfile", help="Path to the HICO-DET bounding box matfile", default='../Dataset/images/anno_bbox.mat', nargs='?')
+	#parser.add_argument("train_path", help="Path to the file containing training images", default='../Dataset/images/train2015', nargs='?')
+	
 	parser.add_argument("train_path", help="Path to the file containing training images", default='../Dataset/images/train2015', nargs='?')
+	#parser.add_argument("det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
+	#	default='../Dataset/images/pkl_files/fullTrain.pkl', nargs='?')
+	
 	parser.add_argument("det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
-		default='../Dataset/images/pkl_files/fullTrain.pkl', nargs='?')
+		default='../Dataset/images/pkl_files/full_train2015.pkl', nargs='?')
+
 	parser.add_argument("ho_prop_file", help="Path to the human-object proposals pickle file. This file contains the paired human-object proposals from the object proposals. If none is specified, will generate and save this file.",
 		default='../Dataset/images/pkl_files/fullTrain_proposals.pkl', nargs='?')
 	parser.add_argument("batch_size", help="batch_size for training", type=int, default=64, nargs='?')
-	parser.add_argument("epochs", help="Number of training epochs", type=int, default=3, nargs='?')
+	parser.add_argument("epochs", help="Number of training epochs", type=int, default=20, nargs='?')
 	parser.add_argument("lr", help="Learning rate", type=float, default=0.0001, nargs='?')
 	parser.add_argument("val_split", help="Percentage of training data to use for validation. e.g 20% = .2", type=float, default=0.2, nargs='?')
 	parser.add_argument("gpu", help="Runninng on GPU?", type=bool, default=True, nargs='?')
 	parser.add_argument("model_save_dir", help="Directory where saved models reside", default='./saved_models', nargs='?')
-	parser.add_argument("save_each_epoch", help="Save every epoch?", type=bool, default=True, nargs='?')
+	parser.add_argument("save_each_epoch", help="Save every epoch?", type=bool, default=False, nargs='?')
 
 	args = parser.parse_args()
 
 	print(args)
-	train_data = HICODET_train(args.train_path, args.bbmatfile, props_file=args.det_prop_file, props_list=args.ho_prop_file)
+	train_data = HICODET_train(args.train_path, args.bbmatfile, props_file=args.det_prop_file, props_list=args.ho_prop_file, proposal_count=4)
 
+	x = train_data.get_img_props(train_data.proposals[0], train_data.annotations[0], 8)
+	#print(x)
 	n_total = len(train_data)
 	n_valid = int(n_total * args.val_split)
 	n_train = int(n_total - n_valid)
@@ -59,9 +67,22 @@ def main():
 
 	train_set, valid_set = torch.utils.data.random_split(train_data, (n_train, n_valid))
 
-	train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=args.batch_size, shuffle=True)
+	train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=4, shuffle=True)
 	valid_data_loader = torch.utils.data.DataLoader(dataset = valid_set, batch_size=1, shuffle=False)
 
+	'''
+	for h,o,p,l in train_data_loader:
+		h=torch.stack([j for i in h for j in i])
+		o=torch.stack([j for i in o for j in i])
+		p=torch.stack([j for i in p for j in i])
+		l=torch.stack([j for i in l for j in i])
+		print(h.shape)
+		print(o.shape)
+		print(p.shape)
+		print(l.shape)
+
+	exit()
+	'''
 	print('------------DATASET SETUP COMPLETE-------------')
 	print('\n')
 	print('------------Setting Up Models------------------')
@@ -112,9 +133,14 @@ def main():
 	for epoch in range(args.epochs):
 		losses = []
 		batch_count = 0
-
+		final_batch_loss = 0.
 		for human_crop, object_crop, int_pattern, outputs in train_data_loader:
 			batch_count += 1
+			human_crop = torch.stack([j for i in human_crop for j in i])
+			object_crop = torch.stack([j for i in object_crop for j in i])
+			int_pattern = torch.stack([j for i in int_pattern for j in i])
+			outputs = torch.stack([j for i in outputs for j in i])
+
 			human_crop = human_crop.float().cuda()
 			object_crop = object_crop.float().cuda()
 			int_pattern = int_pattern.float().cuda()
@@ -133,6 +159,9 @@ def main():
 			optimizer.zero_grad()
 			batch_loss.backward()
 			optimizer.step()
+			final_batch_loss = batch_loss
+
+		print('Epoch #'+str(epoch)+': Loss = '+str(final_batch_loss.item()))
 
 		if args.save_each_epoch==True:
 			print('-------------Saving Model----------------')

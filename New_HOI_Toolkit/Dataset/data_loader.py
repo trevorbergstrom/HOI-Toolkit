@@ -11,7 +11,10 @@ sys.path.append('../FasterRCNN')
 from faster_RCNN_detector import FRCNN_Detector
 from random import choices, sample
 import pickle
+from collections import namedtuple
+import random
 
+img_proposal_set = namedtuple('img_proposal_set', ['img_pth', 'positives', 't1_negatives', 't2_negatives'])
 '''
 This file contains the HICODET_Dataloader class
 '''
@@ -25,8 +28,8 @@ class HICODET_test(Dataset):
 		# Create Simple Annotation lists
 		self.annotations= tools.convert_bbox_matlist(bbox_matlist['bbox_test'], bbox_matlist['list_action'])
 		self.interaction_prop_list = tools.convert_actions(bbox_matlist['list_action'])
-		self.img_names = [img[0] for img in self.annotations] # <-------- [:-1]
-		#self.img_names = [img[0] for img in self.annotations[:50]] # <-------- [:-1]
+		#self.img_names = [img[0] for img in self.annotations] # <-------- [:-1]
+		self.img_names = [img[0] for img in self.annotations[:50]] # <-------- [:-1]
 
 		if props_file == 'none':
 			# Now do proposal detection:
@@ -34,7 +37,7 @@ class HICODET_test(Dataset):
 			print('Test Set Generating Proposals with Detector')
 			self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
 			print('Saving proposals in pickle file')
-			tools.pickle_proposals(self.proposals, 'images/pkl_files/fullTest.pkl')
+			tools.pickle_proposals(self.proposals, '../Dataset/images/pkl_files/smallTest.pkl')
 			print('Done')
 			del(detector)
 		else:
@@ -113,8 +116,9 @@ class HICODET_train(Dataset):
 			detector = FRCNN_Detector()
 			print('Test Set Generating Proposals with Detector')
 			self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
-			tools.pickle_proposals(self.proposals, 'images/pkl_files/fullTrain.pkl')
+			tools.pickle_proposals(self.proposals, '../Dataset/images/pkl_files/full_train2015.pkl')
 			print('Done')
+
 
 			# We dont need FRCNN to hangout and clog GPU memory after generating proposals. 
 			del(detector)
@@ -122,7 +126,7 @@ class HICODET_train(Dataset):
 			print('Loading Precomputed Detection Proposals From Files')
 			with open(props_file, 'rb') as f:
 				self.proposals = pickle.load(f)
-
+		'''
 		if props_list == 'none':
 			print('Creating list of proposals')
 			self.create_prop_list()
@@ -132,22 +136,117 @@ class HICODET_train(Dataset):
 			print('Loading Precomputed Human-Object Proposals from File')
 			with open(props_list, 'rb') as f:
 				self.proposal_set = pickle.load(f)
-
+		
 		del(self.proposals)
+
 		del(self.annotations)
+		'''
 
 	def __len__(self):
-		return len(self.proposal_set)
+		return len(self.img_names)
+
+	def get_img_props(self, det_props, annots, prop_number):
+		img_name = det_props[0]
+		t1_neg_set = []
+		t2_neg_set = []
+		pos_set = []
+		if prop_number < 4:
+			prop_number=4
+
+		for proposal in det_props[1]:
+			obj_name = proposal[1][2].replace(' ','_')
+			gt_hois = annots.hoi_list # Change this to be a dictionary
+			confirmed_hoi_list = []
+
+			t1 = False
+			for gt in gt_hois:
+				if gt.obj == obj_name:
+					for conn in gt.connections:
+						o_idx = conn[1]
+						h_idx = conn[0]
+						#Compute IOUs
+						iou_h = tools.compute_iou(proposal[0][0], gt.human_boxes[h_idx-1])
+						iou_o = tools.compute_iou(proposal[1][0], gt.object_boxes[o_idx-1])
+						min_iou = min(iou_o, iou_h)
+
+						if min_iou >= 0.5:
+							confirmed_hoi_list.append(gt.hoi_id.astype(np.int32))
+						elif min_iou > 0.1:
+							t1 = True
+
+			if len(confirmed_hoi_list) == 0:
+				if t1 == True:
+					confirmed_hoi_list.append(self.no_interaction_idxs[obj_name])
+					gt_vector = tools.build_gt_vec(confirmed_hoi_list).astype(np.int32)
+					t1_neg_set.append([img_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
+				else:
+					confirmed_hoi_list.append(self.no_interaction_idxs[obj_name])
+					gt_vector = tools.build_gt_vec(confirmed_hoi_list).astype(np.int32)
+					t2_neg_set.append([img_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
+			else:
+				gt_vector = tools.build_gt_vec(confirmed_hoi_list).astype(np.int32)
+				pos_set.append([img_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
+
+		# Now we choose a random selection from each 
+		batch_prop_list = []
+		n_pos = random.randrange(1,prop_number-1) # Random number between 1 and max props 
+
+		if len(pos_set) < n_pos:
+			for i in range(len(pos_set)):
+				batch_prop_list.append(pos_set[i])
+			n_pos = len(pos_set)
+		else:
+			picks = random.sample(pos_set,k=n_pos)
+			for i in range(len(picks)):
+				batch_prop_list.append(picks[i])
+
+
+		n_t1 = random.randrange(1,prop_number-n_pos) # random number 
+		if len(t1_neg_set) < n_t1:
+			for i in range(len(t1_neg_set)):
+				batch_prop_list.append(t1_neg_set[i])
+			n_t1 = len(t1_neg_set)
+		else:
+			picks = random.sample(t1_neg_set, k=n_t1)
+			for i in range(len(picks)):
+				batch_prop_list.append(picks[i])
+
+		n_t2 = prop_number-n_pos-n_t1
+		if len(t2_neg_set) < n_t2:
+			for i in range(len(t2_neg_set)):
+				batch_prop_list.append(t2_neg_set[i])
+		else:
+			picks = random.sample(t2_neg_set, k=n_t2)
+			for i in range(len(picks)):
+				batch_prop_list.append(picks[i])
+
+		while len(batch_prop_list) < prop_number:
+			if len(t2_neg_set) != 0:
+				batch_prop_list.append(random.choice(t2_neg_set))
+			elif len(t1_neg_set) != 0:
+				batch_prop_list.append(random.choice(t1_neg_set))
+			elif len(pos_set) != 0: 
+				batch_prop_list.append(random.choice(pos_set))
+			else:
+				index = random.choice(range(len(self)))
+				batch_prop_list = self.get_img_props(self.proposals[index], self.annotations[index], self.proposal_count)
+				
+		return batch_prop_list
+
+
+
 
 	def create_prop_list(self):
 		# each prop: [img_name][propbboxh][propbboxo][GTvec][det_score_h][det_score_o]
 		self.proposal_set = []
 		itr = 0
-		neg_set = []
-		pos_set = []
 
-		# For each Image:
 		for i in range(len(self.proposals)):
+
+			t1_neg_set = []
+			t2_neg_set = []
+			pos_set = []
+
 			# Need the image name later to crop out of 
 			image_name = self.img_names[i]
 
@@ -176,7 +275,7 @@ class HICODET_train(Dataset):
 							# Given the groundtruth bounding boxes that match the proposed object compute IOUs between the proposal and groudtruths
 							iou_h = tools.compute_iou(proposal[0][0], gt.human_boxes[h_idx-1])
 							iou_o = tools.compute_iou(proposal[1][0], gt.object_boxes[o_idx-1])
-
+							min_iou = min(iou_o, iou_h)
 							# Check IOU mins to determine adding this as a true positive and assign to GT vector
 							if min(iou_o, iou_h) > 0.5:
 								confirmed_hoi_list.append(gt.hoi_id.astype(np.int32))
@@ -191,7 +290,27 @@ class HICODET_train(Dataset):
 				#gt_vector = confirmed_hoi_list
 				#append all the relevant information to the proposal set
 				self.proposal_set.append([image_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
-				
+	
+	def __getitem__(self,idx):
+		props_list = self.get_img_props(self.proposals[idx], self.annotations[idx], self.proposal_count)
+
+		human_list = []
+		object_list = []
+		pair_list = []
+		label_list= []
+
+		for proposal in props_list:
+			human_crop, object_crop = tools.crop_pair(proposal[1], proposal[2], os.path.join(self.img_folder_path, proposal[0]), self.img_size)
+			pair = tools.create_interaction_pattern(proposal[1], proposal[2], self.img_size)
+
+			human_list.append(human_crop)
+			object_list.append(object_crop)
+			pair_list.append(pair)
+			label_list.append(proposal[3])
+
+		return human_list, object_list, pair_list, label_list
+
+'''					
 	def __getitem__(self, idx):
 		# Need to take the proposal set and the index, crop the image, create the interaction pattern. returns 
 		proposal = self.proposal_set[idx]
@@ -202,7 +321,7 @@ class HICODET_train(Dataset):
 
 		# When we need the object score this is where we need to send them!
 		return human_crop, object_crop, pair, proposal[3]
-'''		
+	
 	def __getitem__(self, idx):
 
 		# Image Name

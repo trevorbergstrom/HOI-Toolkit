@@ -69,6 +69,7 @@ class FRCNN_Detector():
             # Compute proposals
             x = self.get_predictions(os.path.join(root_dir, i), 0.001)
             img_proplist = []
+
             objs = []
             humans = []
             idx = 0
@@ -108,7 +109,7 @@ class FRCNN_Detector():
             '''
             # Add the img path to the list
             #img_proplist.append(i)
-            set_prop_list.append(img_proplist)
+            set_prop_list.append([i,img_proplist])
 
         return set_prop_list
 
