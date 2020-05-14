@@ -145,6 +145,28 @@ class HICODET_train(Dataset):
 	def __len__(self):
 		return len(self.img_names)
 
+	def dataset_analysis(self):
+		class_count = np.zeros(600)
+		invisible_count = np.zeros(600)
+		imgs_with_class = [ [] for i in range(600) ]
+
+		for img in self.annotations:
+			for hoi in img.hoi_list:
+				if img.path not in imgs_with_class[hoi.hoi_id - 1]:
+					imgs_with_class[hoi.hoi_id - 1].append(img.path)
+
+				if hoi.invis == 1:
+					invisible_count[hoi.hoi_id - 1] += 1
+				else:
+					class_count[hoi.hoi_id - 1] += 1
+
+		print('+------------------ ANALYSIS RESULTS ---------------------+')
+		print('Number of Images: ' + str(len(self)))
+		for i in range(600):
+			print('HOI_ID = {id} : interaction = {inter} : object = {obj} --- #visible = {vis} : #invisible = {invis} : #imgs = {num_imgs}'.format(id = i+1, inter=self.interaction_prop_list[i][2],
+				obj=self.interaction_prop_list[i][1], vis=class_count[i], invis=invisible_count[i], num_imgs=len(imgs_with_class[i])))
+		print('+---------------------------------------------------------+')
+
 	def get_img_props(self, det_props, annots, prop_number):
 		img_name = det_props[0]
 		t1_neg_set = []

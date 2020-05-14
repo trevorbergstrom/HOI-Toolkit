@@ -41,13 +41,14 @@ def main():
 
 	parser.add_argument("ho_prop_file", help="Path to the human-object proposals pickle file. This file contains the paired human-object proposals from the object proposals. If none is specified, will generate and save this file.",
 		default='../Dataset/images/pkl_files/fullTrain_proposals.pkl', nargs='?')
-	parser.add_argument("batch_size", help="batch_size for training", type=int, default=64, nargs='?')
-	parser.add_argument("epochs", help="Number of training epochs", type=int, default=20, nargs='?')
+	parser.add_argument("batch_size", help="batch_size for training", type=int, default=4, nargs='?')
+	parser.add_argument("epochs", help="Number of training epochs", type=int, default=2, nargs='?')
 	parser.add_argument("lr", help="Learning rate", type=float, default=0.0001, nargs='?')
 	parser.add_argument("val_split", help="Percentage of training data to use for validation. e.g 20% = .2", type=float, default=0.2, nargs='?')
 	parser.add_argument("gpu", help="Runninng on GPU?", type=bool, default=True, nargs='?')
 	parser.add_argument("model_save_dir", help="Directory where saved models reside", default='./saved_models', nargs='?')
 	parser.add_argument("save_each_epoch", help="Save every epoch?", type=bool, default=False, nargs='?')
+	parser.add_argument("cp_path", help="Checkpoint Model Path", default=' ', nargs='?')
 
 	args = parser.parse_args()
 
@@ -60,15 +61,19 @@ def main():
 	n_valid = int(n_total * args.val_split)
 	n_train = int(n_total - n_valid)
 
-	n_train_batches = n_train / args.batch_size
+	n_train_batches = int(n_train / args.batch_size)
 
 	print('Length of training set: ' + str(n_train))
 	print('Length of validation set: ' + str(n_valid))
 
 	train_set, valid_set = torch.utils.data.random_split(train_data, (n_train, n_valid))
 
+	#train_data.dataset_analysis()
+	#valid_set.dataset_analysis()
+	#exit()
 	train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=4, shuffle=True)
 	valid_data_loader = torch.utils.data.DataLoader(dataset = valid_set, batch_size=1, shuffle=False)
+
 
 	'''
 	for h,o,p,l in train_data_loader:
@@ -152,6 +157,7 @@ def main():
 
 			total_pred = torch.add(torch.add(human_pred, object_pred), pairwise_pred)
 			batch_loss = criterion(total_pred, outputs.float().cuda())
+			losses.append(batch_loss.item())
 
 			if batch_count % 100 == 0:
 				print('Epoch #' + str(epoch) + ': Batch #' + str(batch_count) + '/' + str(n_train_batches) + ': Loss = ' + str(batch_loss.item()))
@@ -159,9 +165,9 @@ def main():
 			optimizer.zero_grad()
 			batch_loss.backward()
 			optimizer.step()
-			final_batch_loss = batch_loss
 
-		print('Epoch #'+str(epoch)+': Loss = '+str(final_batch_loss.item()))
+		final_loss = sum(losses) / n_train
+		print('<-------------------Epoch #'+str(epoch)+': Loss = '+str(final_loss) + '-------------------->')
 
 		if args.save_each_epoch==True:
 			print('-------------Saving Model----------------')
@@ -175,6 +181,8 @@ def main():
 
 		# Probably need to do validation evaluation here.
 
+	print('-------------------------TRAINING COMPLETE----------------')
+	print('-------------Saving FINAL Model----------------')
 	if args.save_each_epoch==False:
 		folder = os.path.join(args.model_save_dir, 'Final_Trained')
 		os.mkdir(folder)
@@ -184,9 +192,40 @@ def main():
 		torch.save(human_model.state_dict(), h_path)
 		torch.save(object_model.state_dict(), o_path)
 		torch.save(pairwise_model.state_dict(), p_path)
+	print('-----------SAVE FINAL MODEL COMPLETE-----------')
 
+	#------------------------------- EVAL ON VALID SET-----------------------------
+	print('-----------Performing Evaluation-----------')
+	human_model.eval()
+	object_model.eval()
+	pairwise_model.eval()
 
+	batch_count = 0
+	losses = []
+	for human_crop, object_crop, int_pattern, outputs in valid_data_loader:
+		batch_count += 1
+		human_crop = torch.stack([j for i in human_crop for j in i])
+		object_crop = torch.stack([j for i in object_crop for j in i])
+		int_pattern = torch.stack([j for i in int_pattern for j in i])
+		outputs = torch.stack([j for i in outputs for j in i])
+	
+		human_crop = human_crop.float().cuda()
+		object_crop = object_crop.float().cuda()
+		int_pattern = int_pattern.float().cuda()
+	
+		with torch.no_grad():
+			human_pred = human_model(human_crop)
+			object_pred = object_model(object_crop)
+			pairwise_pred = pairwise_model(int_pattern)
+	
+		total_pred = torch.add(torch.add(human_pred, object_pred), pairwise_pred)
+		batch_loss = criterion(total_pred, outputs.float().cuda())
+		losses.append(batch_loss.item())
+	
+		if batch_count % 100 == 0:
+			print('EVAL : Batch #' + str(batch_count) + ': Loss = ' + str(batch_loss.item()))
 
-
+	final_loss = sum(losses) / n_valid
+	print('<-------------------Final Validation Loss = '+str(final_loss) + '-------------------->')
 if __name__ == "__main__":
 	main()
