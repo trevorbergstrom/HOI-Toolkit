@@ -39,8 +39,6 @@ def main():
 	parser.add_argument("det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
 		default='../Dataset/images/pkl_files/full_train2015.pkl', nargs='?')
 
-	parser.add_argument("ho_prop_file", help="Path to the human-object proposals pickle file. This file contains the paired human-object proposals from the object proposals. If none is specified, will generate and save this file.",
-		default='../Dataset/images/pkl_files/fullTrain_proposals.pkl', nargs='?')
 	parser.add_argument("batch_size", help="batch_size for training", type=int, default=4, nargs='?')
 	parser.add_argument("epochs", help="Number of training epochs", type=int, default=2, nargs='?')
 	parser.add_argument("lr", help="Learning rate", type=float, default=0.0001, nargs='?')
@@ -52,11 +50,10 @@ def main():
 
 	args = parser.parse_args()
 
-	print(args)
-	train_data = HICODET_train(args.train_path, args.bbmatfile, props_file=args.det_prop_file, props_list=args.ho_prop_file, proposal_count=4)
+	train_data = HICODET_train(args.train_path, args.bbmatfile, props_file=args.det_prop_file, proposal_count=4)
 
 	x = train_data.get_img_props(train_data.proposals[0], train_data.annotations[0], 8)
-	#print(x)
+	
 	n_total = len(train_data)
 	n_valid = int(n_total * args.val_split)
 	n_train = int(n_total - n_valid)
@@ -68,26 +65,9 @@ def main():
 
 	train_set, valid_set = torch.utils.data.random_split(train_data, (n_train, n_valid))
 
-	#train_data.dataset_analysis()
-	#valid_set.dataset_analysis()
-	#exit()
 	train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=4, shuffle=True)
 	valid_data_loader = torch.utils.data.DataLoader(dataset = valid_set, batch_size=1, shuffle=False)
 
-
-	'''
-	for h,o,p,l in train_data_loader:
-		h=torch.stack([j for i in h for j in i])
-		o=torch.stack([j for i in o for j in i])
-		p=torch.stack([j for i in p for j in i])
-		l=torch.stack([j for i in l for j in i])
-		print(h.shape)
-		print(o.shape)
-		print(p.shape)
-		print(l.shape)
-
-	exit()
-	'''
 	print('------------DATASET SETUP COMPLETE-------------')
 	print('\n')
 	print('------------Setting Up Models------------------')
