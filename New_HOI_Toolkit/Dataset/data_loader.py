@@ -74,6 +74,7 @@ class HICODET_test(Dataset):
 				obj=self.interaction_prop_list[i][1], vis=class_count[i], invis=invisible_count[i], num_imgs=len(imgs_with_class[i])))
 		print('+---------------------------------------------------------+')
 
+
 	def get_img_props(self, det_props, annots, prop_number):
 		img_name = det_props[0]
 		t1_neg_set = []

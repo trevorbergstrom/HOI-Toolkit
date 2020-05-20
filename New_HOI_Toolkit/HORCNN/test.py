@@ -21,18 +21,18 @@ from data_loader import HICODET_train, HICODET_test
 from pair_only import HO_RCNN_Pair
 
 def main():
-	parser = argparse.ArgumentParser(description="Training the HORCNN Model!")
-	parser.add_argument("bbmatfile", help="Path to the HICO-DET bounding box matfile", default='../Dataset/images/anno_bbox.mat', nargs='?')
+	parser = argparse.ArgumentParser(description="Testing the HORCNN Model!")
+	parser.add_argument("--bbmatfile", help="Path to the HICO-DET bounding box matfile", default='../Dataset/images/anno_bbox.mat', nargs='?')
 	#parser.add_argument("train_path", help="Path to the file containing training images", default='../Dataset/images/train2015', nargs='?')
-	parser.add_argument("test_path", help="Path to the file containing Testing images", default='../Dataset/images/test2015', nargs='?')
+	parser.add_argument("--test_path", help="Path to the file containing Testing images", default='../Dataset/images/test2015', nargs='?')
 	#parser.add_argument("det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
 	#	default='../Dataset/images/pkl_files/fullTrain.pkl', nargs='?')
-	parser.add_argument("det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
+	parser.add_argument("--det_prop_file", help="Path of the object detection proposals pickle file. This file should contian detected objects from the images. If none is specified this program will run the FastRCNN Object detector over the training images to create the file", 
 		default='../Dataset/images/pkl_files/full_test2015.pkl', nargs='?')
-	parser.add_argument("batch_size", help="batch_size for training", type=int, default=4, nargs='?')
-	parser.add_argument("gpu", help="Runninng on GPU?", type=bool, default=True, nargs='?')
-	parser.add_argument("model_path", help="Model Path To Evaluate", default='./saved_models/Final_Trained', nargs='?')
-	parser.add_argument("threshold", help="prediction threshold", default=0.001, nargs='?', type=float)
+	parser.add_argument("--batch_size", help="batch_size for training", type=int, default=4, nargs='?')
+	parser.add_argument("--gpu", help="Runninng on GPU?", type=bool, default=True, nargs='?')
+	parser.add_argument("--model_path", help="Model Path To Evaluate", default='./saved_models/Final_Trained', nargs='?')
+	parser.add_argument("--threshold", help="prediction threshold", default=0.001, nargs='?', type=float)
 	args = parser.parse_args()
 
 	bbox_mat = loadmat('../Dataset/images/anno_bbox.mat')
