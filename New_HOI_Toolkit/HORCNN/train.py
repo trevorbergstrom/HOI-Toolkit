@@ -70,7 +70,7 @@ def main():
 	print('Checkpoint File to Resume Training: ' + args.cp_path)
 	print('<------------------------------------------------->')
 
-	
+
 	train_data = HICODET_train(args.train_path, args.bbmatfile, props_file=args.det_prop_file, proposal_count=args.batch_size)
 
 	x = train_data.get_img_props(train_data.proposals[0], train_data.annotations[0], 8)
@@ -136,6 +136,7 @@ def main():
 	print('\n')
 
 	path_list = []
+	final_folder =''
 	if args.save_each_epoch == True:
 		print('--------------Setting Up Saves-----------------')
 		for i in range(args.epochs):
@@ -143,6 +144,9 @@ def main():
 			path = os.path.join(args.model_save_dir, folder)
 			pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 			path_list.append(path)
+
+		final_folder = os.path.join(args.model_save_dir, 'Final_Trained')
+		pathlib.Path(final_folder).mkdir(parents=True, exist_ok=True)
 		print('------CREATING SAVE DIRECTORY COMPLETE---------')
 
 
@@ -197,8 +201,6 @@ def main():
 	print('-------------------------TRAINING COMPLETE----------------')
 	print('-------------Saving FINAL Model----------------')
 	if args.save_each_epoch==False:
-		folder = os.path.join(args.model_save_dir, 'Final_Trained')
-		os.mkdir(folder)
 		h_path = os.path.join(folder, 'human.pth')
 		o_path = os.path.join(folder, 'object.pth')
 		p_path = os.path.join(folder, 'pairwise.pth')

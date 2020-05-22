@@ -74,6 +74,7 @@ def main():
 
 	batch_count = 0
 	losses = []
+	
 	for human_crop, object_crop, int_pattern, outputs in test_data_loader:
 		batch_count += 1
 		human_crop = torch.stack([j for i in human_crop for j in i])
@@ -81,6 +82,10 @@ def main():
 		int_pattern = torch.stack([j for i in int_pattern for j in i])
 		outputs = torch.stack([j for i in outputs for j in i])
 	
+		#human_crop = human_crop.unsqueeze(0).float().cuda()
+		#object_crop = object_crop.unsqueeze(0).float().cuda()
+		#int_pattern = int_pattern.unsqueeze(0).float().cuda()
+
 		human_crop = human_crop.float().cuda()
 		object_crop = object_crop.float().cuda()
 		int_pattern = int_pattern.float().cuda()
@@ -95,7 +100,9 @@ def main():
 		#predictions.append(total_pred_cpu.numpy().astype(float))
 		predictions.append(total_pred)
 		#outs.append(outputs.numpy().astype(int))
+		#outs.append(outputs.unsqueeze(0).cuda())
 		outs.append(outputs.cuda())
+		#batch_loss = criterion(total_pred, outputs.unsqueeze(0).float().cuda())
 		batch_loss = criterion(total_pred, outputs.float().cuda())
 		losses.append(batch_loss.item())
 	
@@ -106,6 +113,11 @@ def main():
 	print('<-------------------Final Validation Loss = '+str(final_loss) + '-------------------->')
 	#outs = np.asarray(outs)
 	sig = nn.Sigmoid()
+
+	import sklearn.metrics as skm
+	m_preds = []
+	m_labels = []
+
 	cm_item = namedtuple('cm_item',['hoi_id', 'tp','fp','tn','fn', 'num_pos', 'num_neg'])
 	confusion_matrix = []
 	for i in range(600):
@@ -122,6 +134,10 @@ def main():
 			pred = pred.cpu().numpy()
 			labels = batch_labels[j].cpu().numpy().astype(int)
 
+			m_preds.append(pred)
+			m_labels.append(labels)
+
+			'''
 			for k in range(len(pred)):
 				p = pred[k]
 				l = labels[k]
@@ -158,10 +174,17 @@ def main():
 
 	print('<------------MEAN AP = ' +str(sum(aps)/600) + '------------------->')
 	for i in range(600):
-		print('HOI_Class: ' + str(i+1) + ' AP= '+ str(aps[i]) + 'TruePos: ' + str(confusion_matrix[i][0]) + 'FalsePos: ' + str(confusion_matrix[i][1]) + 'TrueNeg: ' + str(confusion_matrix[i][2]) + 'FalseNeg: ' + str(confusion_matrix[i][3]) + 'NumPos: ' + str(confusion_matrix[i][4]) + 'NumNeg: ' + str(confusion_matrix[i][5]))
+		print('HOI_Class: ' + str(i+1) + ' AP= '+ str(aps[i]) + ' TruePos: ' + str(confusion_matrix[i][0]) + ' FalsePos: ' + str(confusion_matrix[i][1]) + ' TrueNeg: ' + str(confusion_matrix[i][2]) + ' FalseNeg: ' + str(confusion_matrix[i][3]) + ' NumPos: ' + str(confusion_matrix[i][4]) + ' NumNeg: ' + str(confusion_matrix[i][5]))
 	print('<------------MEAN AP = ' +str(sum(aps)/600) + '------------------->')
+	'''
 
-	test_data.dataset_analysis()
+	m_preds = np.stack(m_preds, axis=0).astype(np.int32)
+	m_labels = np.stack(m_labels, axis=0).astype(np.int32)
+	cm = skm.multilabel_confusion_matrix(m_labels, m_preds)
+
+	print(skm.classification_report(m_labels, m_preds))
+
+	#test_data.dataset_analysis()
 
 if __name__ == "__main__":
 	main()

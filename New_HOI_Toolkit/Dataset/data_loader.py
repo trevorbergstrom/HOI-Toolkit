@@ -48,8 +48,14 @@ class HICODET_test(Dataset):
 			with open(props_file, 'rb') as f:
 				self.proposals = pickle.load(f)
 
+		'''
+		self.pos_props = []
+		for i in range(len(self.img_names)):
+			self.pos_props.extend(self.get_img_props(self.proposals[i], self.annotations[i], 0))
+		'''
+
 	def __len__(self):
-		#return 100
+		#return len(self.pos_props)
 		return len(self.img_names)
 
 	def dataset_analysis(self):
@@ -117,6 +123,8 @@ class HICODET_test(Dataset):
 				gt_vector = tools.build_gt_vec(confirmed_hoi_list).astype(np.int32)
 				pos_set.append([img_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
 
+		#batch_prop_list = pos_set
+		
 		# Now we choose a random selection from each 
 		batch_prop_list = []
 		if prop_number == 1:
@@ -172,9 +180,10 @@ class HICODET_test(Dataset):
 			else:
 				index = random.choice(range(len(self)))
 				batch_prop_list = self.get_img_props(self.proposals[index], self.annotations[index], self.proposal_count)
-				
-		return batch_prop_list
+		
 
+		return batch_prop_list
+	
 	def __getitem__(self,idx):
 		props_list = self.get_img_props(self.proposals[idx], self.annotations[idx], self.proposal_count)
 
@@ -193,7 +202,15 @@ class HICODET_test(Dataset):
 			label_list.append(proposal[3])
 
 		return human_list, object_list, pair_list, label_list
+	'''
+	def __getitem__(self, idx):
+		p = self.pos_props[idx]
+		human_crop, object_crop = tools.crop_pair(p[1], p[2], os.path.join(self.img_folder_path, p[0]), self.img_size)
+		pair = tools.create_interaction_pattern(p[1], p[2], self.img_size)
 
+		return human_crop, object_crop, pair, p[3]
+	'''
+	
 #==========================================================================================================================================================================================
 class HICODET_train(Dataset):
 	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8, props_file='none'):
