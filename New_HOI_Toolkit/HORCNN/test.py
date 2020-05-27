@@ -19,6 +19,7 @@ from collections import namedtuple
 sys.path.append('../Dataset')
 from data_loader import HICODET_train, HICODET_test
 from pair_only import HO_RCNN_Pair
+from confusion_matrix import confusion_matrix
 
 def main():
 	parser = argparse.ArgumentParser(description="Testing the HORCNN Model!")
@@ -37,10 +38,12 @@ def main():
 
 	bbox_mat = loadmat('../Dataset/images/anno_bbox.mat')
 
-	test_data = HICODET_test(args.test_path, args.bbmatfile, props_file=args.det_prop_file, proposal_count=1)
+	test_data = HICODET_test(args.test_path, args.bbmatfile, props_file=args.det_prop_file, proposal_count=10)
+	
+
 	print('Length of Testing dataset: ' + str(len(test_data)))
 	print('Num props ' + str(test_data.proposal_count))
-	test_data_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
+	test_data_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size=4, shuffle=False)
 
 	print('------------DATASET SETUP COMPLETE-------------')
 	print('\n')
@@ -70,6 +73,11 @@ def main():
 	print('---------------TESTING MODEL-------------------')
 
 	predictions = []
+	p_h = []
+	p_o = []
+	p_p = []
+	p_ho = []
+	p_hp = []
 	outs = []
 
 	batch_count = 0
@@ -82,13 +90,13 @@ def main():
 		int_pattern = torch.stack([j for i in int_pattern for j in i])
 		outputs = torch.stack([j for i in outputs for j in i])
 	
-		#human_crop = human_crop.unsqueeze(0).float().cuda()
-		#object_crop = object_crop.unsqueeze(0).float().cuda()
-		#int_pattern = int_pattern.unsqueeze(0).float().cuda()
-
 		human_crop = human_crop.float().cuda()
 		object_crop = object_crop.float().cuda()
 		int_pattern = int_pattern.float().cuda()
+
+		#human_crop = human_crop.float().cuda()
+		#object_crop = object_crop.float().cuda()
+		#int_pattern = int_pattern.float().cuda()
 	
 		with torch.no_grad():
 			human_pred = human_model(human_crop)
@@ -96,93 +104,128 @@ def main():
 			pairwise_pred = pairwise_model(int_pattern)
 	
 		total_pred = torch.add(torch.add(human_pred, object_pred), pairwise_pred)
+		
 		#total_pred_cpu = total_pred.cpu()
-		#predictions.append(total_pred_cpu.numpy().astype(float))
 		predictions.append(total_pred)
+		p_h.append(human_pred)
+		p_o.append(object_pred)
+		p_p.append(pairwise_pred)
+		p_ho.append(torch.add(human_pred, object_pred))
+		p_hp.append(torch.add(human_pred, pairwise_pred))
+		#predictions.append(total_pred)
+		
 		#outs.append(outputs.numpy().astype(int))
-		#outs.append(outputs.unsqueeze(0).cuda())
 		outs.append(outputs.cuda())
+		#outs.append(outputs.cuda())
+		
 		#batch_loss = criterion(total_pred, outputs.unsqueeze(0).float().cuda())
-		batch_loss = criterion(total_pred, outputs.float().cuda())
-		losses.append(batch_loss.item())
+		#batch_loss = criterion(total_pred, outputs.float().cuda())
+		#losses.append(batch_loss.item())
 	
 		if batch_count % 100 == 0:
-			print('EVAL : Batch #' + str(batch_count) + ': Loss = ' + str(batch_loss.item()))
+			#print('EVAL : Batch #' + str(batch_count) + ': Loss = ' + str(batch_loss.item()))
+			print('EVAL : Batch #' + str(batch_count))
+			
+			
+			
 
-	final_loss = sum(losses) / len(test_data)
-	print('<-------------------Final Validation Loss = '+str(final_loss) + '-------------------->')
+	#final_loss = sum(losses) / len(test_data)
+
+	#print('<-------------------Final Validation Loss = '+str(final_loss) + '-------------------->')
 	#outs = np.asarray(outs)
 	sig = nn.Sigmoid()
 
 	import sklearn.metrics as skm
 	m_preds = []
 	m_labels = []
-
-	cm_item = namedtuple('cm_item',['hoi_id', 'tp','fp','tn','fn', 'num_pos', 'num_neg'])
-	confusion_matrix = []
-	for i in range(600):
-		confusion_matrix.append([0,0,0,0,0,0])
+	m_h = []
+	m_o = []
+	m_p = []
+	m_ho = []
+	m_hp = []
 
 	for i in range(len(predictions)): #<---- NUmber of batches passed to the network
-		batch_pred = torch.unbind(predictions[i])
-		batch_labels = torch.unbind(outs[i])
+		batch_pred = predictions[i]
+		batch_labels = outs[i]
+		b_h = p_h[i]
+		b_o = p_o[i]
+		b_p = p_p[i]
+		b_ho = p_ho[i]
+		b_hp = p_hp[i]
+
 		for j in range(len(batch_pred)): #<------ Images per batch
 			pred = batch_pred[j]
-
 			pred = sig(pred)
-			pred = (pred>args.threshold).int()
+			#pred = (pred>args.threshold).int()
 			pred = pred.cpu().numpy()
+			#-------------------------
+			pr_h = b_h[j]
+			pr_h = sig(pr_h)
+			pr_h = pr_h.cpu().numpy()
+			#-------------------------
+			pr_o = b_o[j]
+			pr_o = sig(pr_o)
+			pr_o = pr_o.cpu().numpy()
+			#-------------------------
+			pr_p = b_p[j]
+			pr_p = sig(pr_p)
+			pr_p = pr_p.cpu().numpy()
+			#-------------------------
+			pr_ho = b_ho[j]
+			pr_ho = sig(pr_ho)
+			pr_ho = pr_ho.cpu().numpy()
+			#-------------------------
+			pr_hp = b_hp[j]
+			pr_hp = sig(pr_hp)
+			pr_hp = pr_hp.cpu().numpy()
+
 			labels = batch_labels[j].cpu().numpy().astype(int)
 
 			m_preds.append(pred)
 			m_labels.append(labels)
+			m_h.append(pr_h)
+			m_o.append(pr_o)
+			m_p.append(pr_p)
+			m_ho.append(pr_ho)
+			m_hp.append(pr_hp)
 
-			'''
-			for k in range(len(pred)):
-				p = pred[k]
-				l = labels[k]
-				tp = 0
-				fp = 0
-				tn = 0
-				fn = 0
-				num_pos = 0
-				num_neg = 0
-
-				if p == 1 and l == 1: #True Positive
-					confusion_matrix[k][0] += 1
-					confusion_matrix[k][4] += 1
-				elif p == 1 and l == 0: #False Positive
-					confusion_matrix[k][1] += 1
-					confusion_matrix[k][4] += 1
-				elif p == 0 and l == 0: #True Negative
-					confusion_matrix[k][2] += 1
-					confusion_matrix[k][5] += 1
-				elif p == 0 and l == 1: # False Negative
-					confusion_matrix[k][3] += 1
-					confusion_matrix[k][5] += 1
-				else:
-					print('WE HAVE A PROBLEM')
-
-	# COMPUTE APs for EACH CLASS
-	aps = []
-	for i in range(600):
-		if confusion_matrix[i][4] == 0:
-			aps.append(0)
-		else:
-			aps.append(float(confusion_matrix[i][0] / confusion_matrix[i][4]))
-
-
-	print('<------------MEAN AP = ' +str(sum(aps)/600) + '------------------->')
-	for i in range(600):
-		print('HOI_Class: ' + str(i+1) + ' AP= '+ str(aps[i]) + ' TruePos: ' + str(confusion_matrix[i][0]) + ' FalsePos: ' + str(confusion_matrix[i][1]) + ' TrueNeg: ' + str(confusion_matrix[i][2]) + ' FalseNeg: ' + str(confusion_matrix[i][3]) + ' NumPos: ' + str(confusion_matrix[i][4]) + ' NumNeg: ' + str(confusion_matrix[i][5]))
-	print('<------------MEAN AP = ' +str(sum(aps)/600) + '------------------->')
-	'''
-
-	m_preds = np.stack(m_preds, axis=0).astype(np.int32)
+	m_preds = np.stack(m_preds, axis=0).astype(np.float64)
 	m_labels = np.stack(m_labels, axis=0).astype(np.int32)
-	cm = skm.multilabel_confusion_matrix(m_labels, m_preds)
 
-	print(skm.classification_report(m_labels, m_preds))
+	m_h = np.stack(m_h, axis=0).astype(np.float64)
+	m_o = np.stack(m_o, axis=0).astype(np.float64)
+	m_p = np.stack(m_p, axis=0).astype(np.float64)
+	m_ho = np.stack(m_ho, axis=0).astype(np.float64)
+	m_hp = np.stack(m_hp, axis=0).astype(np.float64)
+
+	print("TOTAL PREDS:")
+	c1 = confusion_matrix(600)
+	c1.mAP(m_labels, m_preds)
+	del c1
+
+	print("HUMAN")
+	c2 = confusion_matrix(600)
+	c2.mAP(m_labels, m_h)
+	del c2
+
+	print("OBJECT")
+	c3 = confusion_matrix(600)
+	c3.mAP(m_labels, m_o)
+	del c3
+	print("PAIR")
+	c4 = confusion_matrix(600)
+	c4.mAP(m_labels, m_p)
+	del c4
+	print("HUMAN_OBJECT")
+	c5 = confusion_matrix(600)
+	c5.mAP(m_labels, m_ho)
+	del c5
+	print("HUMAN_PAIR")
+	c6 = confusion_matrix(600)
+	c6.mAP(m_labels, m_hp)
+
+	#cm = skm.multilabel_confusion_matrix(m_labels, m_preds)
+	#print(skm.classification_report(m_labels, m_preds))
 
 	#test_data.dataset_analysis()
 

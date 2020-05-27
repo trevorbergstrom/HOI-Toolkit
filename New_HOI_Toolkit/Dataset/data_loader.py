@@ -15,6 +15,7 @@ from collections import namedtuple
 import random
 
 img_proposal_set = namedtuple('img_proposal_set', ['img_pth', 'positives', 't1_negatives', 't2_negatives'])
+test_prop = namedtuple('test_prop', ['img_pth', 'bbox_h', 'bbox_o', 'hoi_id'])
 '''
 This file contains the HICODET_Dataloader class
 '''
@@ -48,6 +49,8 @@ class HICODET_test(Dataset):
 			with open(props_file, 'rb') as f:
 				self.proposals = pickle.load(f)
 
+		self.good_props = self.compile_props()
+		
 		'''
 		self.pos_props = []
 		for i in range(len(self.img_names)):
@@ -55,7 +58,7 @@ class HICODET_test(Dataset):
 		'''
 
 	def __len__(self):
-		#return len(self.pos_props)
+		#return len(self.good_props)
 		return len(self.img_names)
 
 	def dataset_analysis(self):
@@ -78,7 +81,60 @@ class HICODET_test(Dataset):
 		for i in range(600):
 			print('HOI_ID = {id} : interaction = {inter} : object = {obj} --- #visible = {vis} : #invisible = {invis} : #imgs = {num_imgs}'.format(id = i+1, inter=self.interaction_prop_list[i][2],
 				obj=self.interaction_prop_list[i][1], vis=class_count[i], invis=invisible_count[i], num_imgs=len(imgs_with_class[i])))
+			if i == 9:
+				print(imgs_with_class[i])
 		print('+---------------------------------------------------------+')
+
+	def compile_props(self):
+		good_props = []
+		for i in range(len(self.annotations)):
+			img_path = self.annotations[i].path
+			#print(img_path)
+			hoi_list = self.annotations[i].hoi_list
+
+			humans = []
+			objects = []
+			hoi_ids = []
+
+			for p in hoi_list:
+				for c in p.connections:
+					humans.append(p.human_boxes[c[0]-1])
+					objects.append(p.object_boxes[c[1]-1])
+					hoi_ids.append(p.hoi_id)
+
+			# find distinct humans and objects
+			unique_p = []
+			n = len(humans)
+			for j in range(len(humans)):
+				h = humans[j]
+				o = objects[j]
+				idxs = []
+				idxs.append(j)
+				for k in range(len(humans)):
+					if k != j:
+						if min(tools.compute_iou2(h, humans[k]), tools.compute_iou2(o, objects[k])) > 0.5:
+							idxs.append(k)
+				unique_p.append(idxs)
+
+			for p in unique_p:
+				p.sort()
+
+			up2 = []
+			for p in unique_p:
+				if p not in up2:
+					up2.append(p)
+
+			for p in up2:
+				hois = []
+				for idx in p:
+					hois.append(hoi_ids[idx])
+				gt_vector = tools.build_gt_vec(hois).astype(np.int32)
+
+				h_box = np.array(humans[p[0]]).astype(np.int32)
+				o_box = np.array(objects[p[0]]).astype(np.int32)
+				good_props.append(test_prop(img_path, h_box, o_box, gt_vector))
+
+		return good_props
 
 
 	def get_img_props(self, det_props, annots, prop_number):
@@ -123,7 +179,7 @@ class HICODET_test(Dataset):
 				gt_vector = tools.build_gt_vec(confirmed_hoi_list).astype(np.int32)
 				pos_set.append([img_name, proposal[0][0], proposal[1][0], gt_vector, proposal[0][1], proposal[1][1]])
 
-		#batch_prop_list = pos_set
+		
 		
 		# Now we choose a random selection from each 
 		batch_prop_list = []
@@ -181,7 +237,7 @@ class HICODET_test(Dataset):
 				index = random.choice(range(len(self)))
 				batch_prop_list = self.get_img_props(self.proposals[index], self.annotations[index], self.proposal_count)
 		
-
+		
 		return batch_prop_list
 	
 	def __getitem__(self,idx):
@@ -203,11 +259,12 @@ class HICODET_test(Dataset):
 
 		return human_list, object_list, pair_list, label_list
 	'''
-	def __getitem__(self, idx):
-		p = self.pos_props[idx]
-		human_crop, object_crop = tools.crop_pair(p[1], p[2], os.path.join(self.img_folder_path, p[0]), self.img_size)
-		pair = tools.create_interaction_pattern(p[1], p[2], self.img_size)
 
+	def __getitem__(self, idx):
+		p = self.good_props[idx]
+		human_crop, object_crop = tools.crop_pair(p[1], p[2], os.path.join(self.img_folder_path, p[0]), self.img_size)
+		pair = tools.create_interaction_pattern2(p[1], p[2], self.img_size)
+		
 		return human_crop, object_crop, pair, p[3]
 	'''
 	

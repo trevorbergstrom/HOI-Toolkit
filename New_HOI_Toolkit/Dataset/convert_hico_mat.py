@@ -137,6 +137,30 @@ def create_interaction_pattern(bbox_h, bbox_o, size):
     object_channel = torch.from_numpy(object_channel).type(torch.FloatTensor)
 
     return torch.stack([human_channel, object_channel], dim=0)
+
+def create_interaction_pattern2(bbox_h, bbox_o, size):
+    ip_x1 = min(bbox_h[0], bbox_o[0])
+    ip_x2 = max(bbox_h[1], bbox_o[1])
+    ip_y1 = min(bbox_h[2], bbox_o[2])
+    ip_y2 = max(bbox_h[3], bbox_o[3])
+    w = ip_x2-ip_x1
+    h = ip_y2-ip_y1
+
+    human_channel = Image.new('1', (w,h), color=0)
+    human_channel_draw = ImageDraw.Draw(human_channel)
+    human_channel_draw.rectangle([bbox_h[0], bbox_h[2], bbox_h[1], bbox_h[3]], fill=1)
+    human_channel = human_channel.resize((size,size))
+    human_channel = np.asarray(human_channel)
+    human_channel = torch.from_numpy(human_channel).type(torch.FloatTensor)
+
+    object_channel = Image.new('1', (w,h), color=0)
+    object_channel_draw = ImageDraw.Draw(object_channel)
+    object_channel_draw.rectangle([bbox_o[0], bbox_o[2], bbox_o[1], bbox_o[3]], fill=1)
+    object_channel = object_channel.resize((size,size))
+    object_channel = np.asarray(object_channel)
+    object_channel = torch.from_numpy(object_channel).type(torch.FloatTensor)
+
+    return torch.stack([human_channel, object_channel], dim=0)
 ''' 
 =====================================================================================================================================
 convert_bbox_matlist function:
@@ -282,6 +306,7 @@ def build_gt_vec(img_hoi_list):
 	return classes
 
 def compute_iou(bbox_prop, bbox_truth):
+
     bbox_prop = bbox_prop.astype(np.int32)
     bbox_truth = np.array(bbox_truth).astype(np.int32)
     bbox_prop = bbox_prop.tolist()
@@ -299,6 +324,31 @@ def compute_iou(bbox_prop, bbox_truth):
 
     area_intersection = (x2-x1) * (y2-y1)
     area_prop = ((bbox_prop[2] - bbox_prop[0]) * (bbox_prop[3] - bbox_prop[1])) 
+    area_truth = ((bbox_truth[1] - bbox_truth[0]) * (bbox_truth[3] - bbox_truth[2]))
+    area_union = (area_prop + area_truth) - area_intersection
+
+    return float(area_intersection) / (float(area_union) + 0.001)
+
+def compute_iou2(bbox_prop, bbox_truth):
+    #print('COMIOU')
+    #bbox_prop = bbox_prop.astype(np.int32)
+    bbox_truth = np.array(bbox_truth).astype(np.int32)
+    bbox_prop = np.array(bbox_prop).astype(np.int32)
+    #bbox_prop = bbox_prop.tolist()
+    #bbox_truth = bbox_truth.tolist()
+
+    x1 = max(bbox_prop[0], bbox_truth[0])
+    x2 = min(bbox_prop[1], bbox_truth[1])
+    y1 = max(bbox_prop[2], bbox_truth[2])
+    y2 = min(bbox_prop[3], bbox_truth[3])
+
+    x_bound = x2-x1
+    y_bound = y2-y1
+    if x_bound <=0 or y_bound <= 0:
+        return 0.0
+
+    area_intersection = (x2-x1) * (y2-y1)
+    area_prop = ((bbox_prop[1] - bbox_prop[0]) * (bbox_prop[3] - bbox_prop[2])) 
     area_truth = ((bbox_truth[1] - bbox_truth[0]) * (bbox_truth[3] - bbox_truth[2]))
     area_union = (area_prop + area_truth) - area_intersection
 
