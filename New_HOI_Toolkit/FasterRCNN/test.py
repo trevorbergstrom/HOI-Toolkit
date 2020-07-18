@@ -2,10 +2,5 @@ from faster_RCNN_detector import FRCNN_Detector
 
 detect = FRCNN_Detector()
 
-preds = detect.get_data_preds(['wtf.jpg'], '.', 10)
-
-
-for i in preds[0]:
-    print(i)
-    print('\n')
+detect.detect_image('../Dataset/images/train2015/HICO_train2015_00000017.jpg', .8)
 

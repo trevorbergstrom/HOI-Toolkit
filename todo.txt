@@ -1,7 +1,0 @@
-Need to figure out a way to convert classes from the COCO class numbers to the HICODET class numbers
-
-Need to create proposal lists that include the three proposal categories. This will require taking all the proposals and computing IOUs, comparing them to the ground truth IOUs. Ugh pain in the ass.
-
-Then we need to create a list of proposals in each image. However, the paper says these images and proposals rae randomly sampled, but this deosnt make sense as a full training epoch needs to see all of the proposals? How to do this?
-
-Then we need to train the model and figure out how to save the model state

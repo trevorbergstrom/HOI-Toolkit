@@ -19,7 +19,7 @@ Proposals are listed as follows:
 import torch
 import torchvision
 import torchvision.transforms as T
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import os
 import numpy as np
 
@@ -57,6 +57,35 @@ class FRCNN_Detector():
 
         return (pred)
 
+    def detect_image(self, img_path, threshold):
+        preds = self.get_predictions(img_path, threshold)
+        im = Image.open(img_path)
+        #im.show()
+        im_d = ImageDraw.Draw(im)
+        bboxes = list(preds[0]['boxes'].cpu().detach().numpy())
+        scores = list(preds[0]['scores'].cpu().detach().numpy())
+        labels = list(preds[0]['labels'].cpu().detach().numpy())
+        print(bboxes)
+        print(scores)
+        print(labels)
+        fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 10)
+        for i in range(len(bboxes)):
+            if scores[i] > threshold:
+                label = self.COCO_INSTANCE_CATEGORY_NAMES[labels[i]]
+                score = scores[i]
+                m_txt = 'Category: {c}, Score: {s:.2f}'
+                m_txt = m_txt.format(c=label, s=score)
+                im_d.rectangle([bboxes[i][0], bboxes[i][1], bboxes[i][2], bboxes[i][3]], outline='blue', width=2)
+                #im_d.rectangle([bboxes[i][0], bboxes[i][3], bboxes[i][0]+200, bboxes[i][3]-20], fill='blue')
+                #im_d.text((bboxes[i][0]+5, bboxes[i][3]-15), m_txt, font=fnt, fill='white')
+        im.show()
+
+    def label_image(self, path, x1, x2, y1, y2):
+        im = Image.open(path)
+        im_d = ImageDraw.Draw(im)
+        im_d.rectangle([x1, y1, x2, y2], outline='red', width=2)
+        im.show()
+
     # Fucntion to get a list of proposals for a set of images
     def get_data_preds(self, imgs, root_dir, proposal_count):
         set_prop_list = []
@@ -82,8 +111,12 @@ class FRCNN_Detector():
             for j in list(x[0]['labels'].cpu().detach().numpy()):
                 if j == 1:
                     humans.append([bboxes[idx], scores[idx], j])
+                # Append all humans and objects to the list of objects
+                objs.append([bboxes[idx], scores[idx], self.COCO_INSTANCE_CATEGORY_NAMES[j]])
+                '''
                 else:
                     objs.append([bboxes[idx], scores[idx], self.COCO_INSTANCE_CATEGORY_NAMES[j]])
+                '''
                 idx = idx+1
 
             # only get top 10 humans and objects: (note: looks like the ordering of the predictions are in highest confidence to lowest)

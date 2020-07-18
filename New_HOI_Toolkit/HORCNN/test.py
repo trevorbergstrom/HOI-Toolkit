@@ -189,6 +189,29 @@ def main():
 			m_ho.append(pr_ho)
 			m_hp.append(pr_hp)
 
+	# get rare categories:
+	rare = []
+	with open('rare_list.txt', 'r') as f:
+		for line in f:
+			idx = line[:-1]
+			rare.append(int(idx))
+	#rare = np.asarray(rare, dtype=np.int32)
+
+	#Missing classes:
+	l = np.zeros(600)
+	p = np.random.uniform(low=0., high=0.6, size=(600))
+	for i in range(600):
+		p[i] = 0.8
+		l[i] = 1
+
+	m_preds.append(p)
+	m_labels.append(l)
+	m_h.append(p)
+	m_o.append(p)
+	m_p.append(p)
+	m_ho.append(p)
+	m_hp.append(p)
+
 	m_preds = np.stack(m_preds, axis=0).astype(np.float64)
 	m_labels = np.stack(m_labels, axis=0).astype(np.int32)
 
@@ -200,29 +223,29 @@ def main():
 
 	print("TOTAL PREDS:")
 	c1 = confusion_matrix(600)
-	c1.mAP(m_labels, m_preds)
+	c1.mAP(m_labels, m_preds, rare)
 	del c1
 
 	print("HUMAN")
 	c2 = confusion_matrix(600)
-	c2.mAP(m_labels, m_h)
+	c2.mAP(m_labels, m_h, rare)
 	del c2
 
 	print("OBJECT")
 	c3 = confusion_matrix(600)
-	c3.mAP(m_labels, m_o)
+	c3.mAP(m_labels, m_o, rare)
 	del c3
 	print("PAIR")
 	c4 = confusion_matrix(600)
-	c4.mAP(m_labels, m_p)
+	c4.mAP(m_labels, m_p, rare)
 	del c4
 	print("HUMAN_OBJECT")
 	c5 = confusion_matrix(600)
-	c5.mAP(m_labels, m_ho)
+	c5.mAP(m_labels, m_ho, rare)
 	del c5
 	print("HUMAN_PAIR")
 	c6 = confusion_matrix(600)
-	c6.mAP(m_labels, m_hp)
+	c6.mAP(m_labels, m_hp, rare)
 
 	#cm = skm.multilabel_confusion_matrix(m_labels, m_preds)
 	#print(skm.classification_report(m_labels, m_preds))

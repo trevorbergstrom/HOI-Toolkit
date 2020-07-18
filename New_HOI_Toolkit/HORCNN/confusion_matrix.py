@@ -2,6 +2,7 @@ import numpy as np
 import copy
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import average_precision_score
+import math
 
 class confusion_matrix():
 	def __init__(self, num_classes):
@@ -9,7 +10,10 @@ class confusion_matrix():
 		self.mtx = np.zeros((num_classes, 4))
 		self.labels = [x+1 for x in range(self.num_classes)]
 
-	def mAP(self, y_true, y_pred):
+	def mAP(self, y_true, y_pred, rare_idxs):
+		ay_true = np.column_stack(y_true[:-1])
+		ay_pred = np.column_stack(y_pred[:-1])
+
 		y_true = np.column_stack(y_true)
 		y_pred = np.column_stack(y_pred)
 
@@ -23,16 +27,45 @@ class confusion_matrix():
 		#precision = np.zeros(self.num_classes)
 		#recall = np.zeros(self.num_classes)
 		avg_precision = []
-		
+		avg_precision_a = []
+		avg_precision_micro = []
+		avg_precision_macro = []
+		avg_precision_rare = []
+		avg_precision_norare = []
 		# Looping for each class:
 		for i in range(self.num_classes):
 			precision, recall, _ = precision_recall_curve(y_true[i], y_pred[i])
-			avg_precision.append(average_precision_score(y_true[i], y_pred[i]))
-			txt='Class #{c} : Precision = {p} : Recall = {r} : Avg_Precision = {a}'
-			print(txt.format(c=i, p=precision, r=recall, a=avg_precision[i]))
+			avg_precision.append(average_precision_score(y_true[i], y_pred[i],average='weighted'))
+			avg_precision_a.append(average_precision_score(ay_true[i], ay_pred[i], average='weighted'))
+			avg_precision_macro.append(average_precision_score(y_true[i], y_pred[i],average='macro'))
+			avg_precision_micro.append(average_precision_score(y_true[i], y_pred[i],average='micro'))
 
-		txt = 'Final mAP = {ap}'
-		print(txt.format(ap=(sum(avg_precision)/self.num_classes)))
+			if i in rare_idxs:
+				avg_precision_rare.append(average_precision_score(ay_true[i], ay_pred[i], average='weighted'))
+			else:
+				avg_precision_norare.append(average_precision_score(ay_true[i], ay_pred[i], average='weighted'))
+
+			#txt='Class #{c} : Precision = {p} : Recall = {r} : Avg_Precision = {a}'
+			txt='Class #{c} : Avg_Precision = {a} : AP_a = {aa} : AP_Macro = {ama} : A)_Micro = {ami}'
+			print(txt.format(c=i+1, a=avg_precision[i], aa=avg_precision_a[i], ama=avg_precision_macro[i], ami=avg_precision_micro[i]))
+
+		avg_precision_a1 = []
+		avg_precision_rare1 = []
+		avg_precision_norare1 = []
+		for i in avg_precision_rare:
+			if math.isnan(i) == False:
+				avg_precision_rare1.append(i)
+		for i in avg_precision_norare:
+			if math.isnan(i) == False:
+				avg_precision_norare1.append(i)
+		for i in avg_precision_a:
+			if math.isnan(i) == False:
+				avg_precision_a1.append(i)
+
+		txt = 'Final mAP [EXTRA-CLASS] = {ap} : mAP_a = {a} : mAP_Macro = {ama} : mAP_Micro = {ami} : Rare = {r} : No Rare = {nr}'
+		print(txt.format(ap=(sum(avg_precision)/self.num_classes), a=(sum(avg_precision_a1) / len(avg_precision_a1)), ama=(sum(avg_precision_macro)/self.num_classes),
+		 ami=(sum(avg_precision_micro) / self.num_classes), r=(sum(avg_precision_rare1) / len(avg_precision_rare1)), nr=(sum(avg_precision_norare1) / len(avg_precision_norare1))))
+
 
 	def thresholds(self, y_true, y_pred):
 		thresholds = [0.05,0.1,0.2,0.4,0.5,0.6,0.7,0.8]

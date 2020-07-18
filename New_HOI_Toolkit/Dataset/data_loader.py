@@ -22,32 +22,31 @@ This file contains the HICODET_Dataloader class
 class HICODET_test(Dataset):
 	def __init__(self, folder_path, bbox_matlist, img_size=256, proposal_count=8, props_file='none'):
 		
-		bbox_matlist = loadmat(bbox_matlist)	
+		# Load the annotations from the supplied matfile
+		print('Loading annotations from file...')
+		bbox_matlist = loadmat(bbox_matlist)
 		self.img_size = img_size
 		self.proposal_count = proposal_count
-
 		self.img_folder_path = folder_path
-
 		self.annotations = tools.convert_bbox_matlist(bbox_matlist['bbox_test'], bbox_matlist['list_action'])
 		self.interaction_prop_list, self.no_interaction_idxs = tools.convert_actions(bbox_matlist['list_action'])
-		self.img_names = [img[0] for img in self.annotations] # <--- Change size for larger set
-		#self.img_names = [img[0] for img in self.annotations[:50]] # <--- Change size for larger set
+		#self.img_names = [img[0] for img in self.annotations] # <--- Change size for larger set
+		self.img_names = [img[0] for img in self.annotations[:168]] # <--- Change size for larger set
+		print('Done')
 
-
-		if props_file == 'none':
+		if not os.path.exists(props_file):
 			detector = FRCNN_Detector()
 			print('Test Set Generating Proposals with Detector')
 			self.proposals = detector.get_data_preds(self.img_names, folder_path, proposal_count)
-			tools.pickle_proposals(self.proposals, '../Dataset/images/pkl_files/full_test2015.pkl')
+			tools.pickle_proposals(self.proposals, props_file)
 			print('Done')
-
-
 			# We dont need FRCNN to hangout and clog GPU memory after generating proposals. 
 			del(detector)
 		else:
 			print('Loading Precomputed Detection Proposals From Files')
 			with open(props_file, 'rb') as f:
 				self.proposals = pickle.load(f)
+			print('Done')
 
 		self.good_props = self.compile_props()
 		
@@ -241,6 +240,8 @@ class HICODET_test(Dataset):
 		return batch_prop_list
 	
 	def __getitem__(self,idx):
+		print(self.img_names[idx])
+		print(self.annotations[idx])
 		props_list = self.get_img_props(self.proposals[idx], self.annotations[idx], self.proposal_count)
 
 		human_list = []
@@ -313,16 +314,46 @@ class HICODET_train(Dataset):
 					imgs_with_class[hoi.hoi_id - 1].append(img.path)
 
 				if hoi.invis == 1:
-					invisible_count[hoi.hoi_id - 1] += 1
+					invisible_count[hoi.hoi_id - 1] += len(hoi.connections)
 				else:
-					class_count[hoi.hoi_id - 1] += 1
+					class_count[hoi.hoi_id - 1] += len(hoi.connections)
 
+		inters = []
+		int_cnt = []
+		rare_list = []
 		print('+------------------ ANALYSIS RESULTS ---------------------+')
 		print('Number of Images: ' + str(len(self)))
 		for i in range(600):
+			inters.append(self.interaction_prop_list[i][2])
+			int_cnt.append(class_count[i])
+			if class_count[i] < 6:
+				rare_list.append(i)
 			print('HOI_ID = {id} : interaction = {inter} : object = {obj} --- #visible = {vis} : #invisible = {invis} : #imgs = {num_imgs}'.format(id = i+1, inter=self.interaction_prop_list[i][2],
 				obj=self.interaction_prop_list[i][1], vis=class_count[i], invis=invisible_count[i], num_imgs=len(imgs_with_class[i])))
 		print('+---------------------------------------------------------+')
+
+		c = 0
+		k = 0
+		for i in range(len(inters)):
+			if inters[i] == 'straddle':
+				c += int_cnt[i]
+				k += 1
+
+		print('rare: ')
+		print(len(rare_list))
+
+		print('Feed HORSE:')
+		print(imgs_with_class[129])
+		print('Pet HORSE:')
+		print(imgs_with_class[137])
+		print('Feed Zebra:')
+		print(imgs_with_class[595])
+		print('Pet Zebra:')
+		print(imgs_with_class[597])
+
+		with open('rare_list.txt', 'w') as f:
+			for item in rare_list:
+				f.write('%d\n' % item)
 
 	def get_img_props(self, det_props, annots, prop_number):
 		img_name = det_props[0]

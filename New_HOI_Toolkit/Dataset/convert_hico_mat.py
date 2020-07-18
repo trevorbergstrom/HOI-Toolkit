@@ -93,6 +93,17 @@ def multi_crop_img(bbox_list, img_path, size):
 
 	return list_crops
 
+''' 
+=====================================================================================================================================
+crop_pair function:
+
+    crops a pair of bounding boxes from the image
+Input:
+    bbox_human, bbox_object: x1,x2,y1,y2 (hicodet format), img_path, size of resized crop
+Returns:
+    two numpy arrays, transposed to torch tensor format
+=====================================================================================================================================
+'''
 def crop_pair(bbox_human, bbox_object, img_path, size):
     img = Image.open(img_path)
     if img.mode == 'L':
@@ -103,6 +114,7 @@ def crop_pair(bbox_human, bbox_object, img_path, size):
     #human.show()
     #obj.show()
     return np.asarray(human).transpose(-1,0,1).astype(np.int32), np.asarray(obj).transpose(-1,0,1).astype(np.int32)
+
 ''' 
 =====================================================================================================================================
 create_interaction_pattern function:
@@ -288,7 +300,7 @@ def convert_bbox_matlist(mat_list, action_list):
     return img_list
 
 def remove_dupes(a_list):
-	final_list = []
+    final_list = []
 	for i in a_list:
 		if i not in final_list:
 			final_list.append(i)

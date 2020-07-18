@@ -86,6 +86,9 @@ def main():
 
 	train_set, valid_set = torch.utils.data.random_split(train_data, (n_train, n_valid))
 
+	train_data.dataset_analysis()
+	exit()
+
 	train_data_loader = torch.utils.data.DataLoader(dataset = train_set, batch_size=args.batch_size, shuffle=True)
 	valid_data_loader = torch.utils.data.DataLoader(dataset = valid_set, batch_size=1, shuffle=False)
 
